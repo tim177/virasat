@@ -1,26 +1,161 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Virasat design tokens: the only colours, sizes, radii and shadows components may use.
+ * Never hard-code a hex value in a component; add or change a token here instead.
+ * Contrast pairs are checked by tests/unit/design-tokens.test.ts.
+ */
+@theme {
+  /* Colours. The Tailwind default palette is removed so only these names exist. */
+  --color-*: initial;
+  --color-white: #ffffff; /* surfaces */
+  --color-ivory: #fbf8f3; /* page ground */
+  --color-sand: #f3ede3;
+  --color-line: #e6ded1; /* dividers only; too light for form field borders */
+  --color-charcoal: #1f1b19; /* text */
+  --color-stone-700: #5f5751; /* secondary text, form field borders */
+  --color-crimson-50: #faf0f0;
+  --color-crimson-700: #7b1e2b; /* primary action */
+  --color-crimson-800: #5e1520; /* primary hover */
+  --color-emerald-100: #dcebe4;
+  --color-emerald-700: #0f4c3a; /* trust, success */
+  --color-gold-400: #d9b46a; /* call to action on dark surfaces */
+  --color-gold-500: #c9a45c; /* ornament only, never text */
+  --color-gold-700: #8a6a2b; /* the only gold allowed as text, and only on white or ivory */
+  --color-error: #b42318;
+  --color-warning: #9a5b00;
+  --color-info: #1f4e79;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Type scale: 72/56/40/32/24 display and headings, 18/16/14/12 body. */
+  --text-display-1: 4.5rem;
+  --text-display-1--line-height: 1.05;
+  --text-display-2: 3.5rem;
+  --text-display-2--line-height: 1.1;
+  --text-h1: 2.5rem;
+  --text-h1--line-height: 1.15;
+  --text-h2: 2rem;
+  --text-h2--line-height: 1.2;
+  --text-h3: 1.5rem;
+  --text-h3--line-height: 1.3;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.5;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Radius: 2px cards and images, 6px inputs and modals, pills. Arch is a utility below. */
+  --radius-*: initial;
+  --radius-card: 2px;
+  --radius-field: 6px;
+  --radius-pill: 9999px;
+
+  /* Elevation: two levels only. */
+  --shadow-*: initial;
+  --shadow-raised: 0 1px 2px rgb(31 27 25 / 0.06), 0 4px 12px rgb(31 27 25 / 0.06);
+  --shadow-overlay: 0 12px 32px rgb(31 27 25 / 0.16), 0 2px 8px rgb(31 27 25 / 0.08);
+
+  /* Motion: 150-250ms ease-out for overlays. Turned off for prefers-reduced-motion below. */
+  --animate-dialog-in: dialog-in 200ms ease-out;
+  --animate-drawer-in-left: drawer-in-left 220ms ease-out;
+  --animate-toast-in: toast-in 200ms ease-out;
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes drawer-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Font families come from next/font in app/layout.tsx. */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), ui-serif, Georgia, serif;
+}
+
+/* Category and lookbook frames: round top, square bottom. */
+@utility rounded-arch {
+  border-radius: 999px 999px 2px 2px;
+}
+
+/* Jaali lattice: placeholder for missing photos and photo-free surfaces (gold-500 on sand). */
+@utility bg-jaali {
+  background-color: var(--color-sand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%23C9A45C' stroke-opacity='.55'%3E%3Cpath d='M16 0 32 16 16 32 0 16Z'/%3E%3Ccircle cx='16' cy='16' r='4'/%3E%3Ccircle r='4'/%3E%3Ccircle cx='32' r='4'/%3E%3Ccircle cy='32' r='4'/%3E%3Ccircle cx='32' cy='32' r='4'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 32px 32px;
+}
+
+/* Page width: 1360px max, 16px gutter on mobile, 24px from tablet up. */
+@utility page-container {
+  width: 100%;
+  max-width: 1360px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+
+  @variant md {
+    padding-inline: 1.5rem;
+  }
+}
+
+@layer base {
+  :root {
+    --focus-ring: var(--color-charcoal);
+  }
+
+  /* Dark surfaces (trust bar, footer) switch the focus ring to gold so it stays visible. */
+  .surface-dark {
+    --focus-ring: var(--color-gold-400);
+  }
+
+  body {
+    background-color: var(--color-ivory);
+    color: var(--color-charcoal);
+    font-family: var(--font-sans);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Stop the page scrolling behind an open modal or drawer. */
+  html:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

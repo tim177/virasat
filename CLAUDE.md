@@ -92,6 +92,12 @@ DESIGN SYSTEM (match the Virasat canvas exactly)
 - Motifs: "zari rule" divider (1px gold line + diamond knot), jaali lattice texture for
   image placeholders and photo-free surfaces. No gradients-as-decoration, no emoji.
 - Layout: 1360px max content width, 12-col grid, 24px gutter, 16px mobile gutter.
+- In code (Step 2): tokens live in app/globals.css (@theme). Tailwind's default palette,
+  radii and shadows are removed, so use only token classes (bg-crimson-700, text-stone-700,
+  rounded-card/field/pill/arch, shadow-raised/overlay, text-h1..caption, font-display,
+  bg-jaali, page-container). Form field borders use stone-700 (Line is too light for 3:1).
+  Reuse components/ui (preview: /dev/components) before writing new UI; user-facing
+  strings go in lib/i18n/en.ts. tests/unit/design-tokens.test.ts guards contrast.
 
 WORKING STYLE
 - Keep it simple and minimal: the smallest thing that is complete and correct. No new

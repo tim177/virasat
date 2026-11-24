@@ -36,16 +36,21 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://virasat:virasat_ci@localhost:5432/virasat
+      # Lets the production build serve /dev/components so the accessibility tests can run.
+      # Never set this on the live server.
+      ENABLE_DEV_PAGES: "true"
 
     steps:
       - uses: actions/checkout@v5
 
+      # pnpm must exist before setup-node, because setup-node caches the pnpm store.
+      # The version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
-
-      - name: Install pnpm
-        run: npm install -g pnpm@12.23.0
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

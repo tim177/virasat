@@ -23,6 +23,8 @@ pnpm dev                  # http://localhost:3000
 
 The home page shows **"Database: connected"** when everything works. `GET /api/health` returns the same as JSON.
 
+All design-system components are previewed at **http://localhost:3000/dev/components** (development only).
+
 ## Everyday commands
 
 | Command                       | What it does                                                                    |
