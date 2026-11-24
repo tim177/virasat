@@ -300,11 +300,12 @@ Each step ends with **"Done when"**. Finish it before starting the next step.
 **Done when:** every component works by keyboard, has visible focus, 44px tap targets and 4.5:1 contrast, and passes an axe check.
 
 ### Step 3: Database and products · ~2 days
-1. Write `schema.prisma` for the tables in section 7, then run the first migration.
-2. Seed script with about 12 sample products (with photos) for development.
-3. Cloudflare R2 bucket for photos, served from an `images.<domain>` address. Allow that address in `next/image`.
+1. Write `schema.prisma` for the **catalogue tables** (products, product_images, variants), plus database CHECK rules for money, stock, slugs and alt text, then run the first migration.
+   - The order tables (checkout_drafts, orders, order_items, order_events) arrive in Step 5, the admin tables (users, sessions, admin_log) in Step 6, and fit_profiles in Step 7. Each ships in its own migration with the code and tests that use it.
+2. Seed script with about 12 sample products for development. The photos are generated sample artwork in `/public/seed`, not real photos. The script refuses to run against a non-local database unless `ALLOW_SEED=true`.
+3. Allow the photo address (`IMAGES_BASE_URL`, the R2 bucket on `images.<domain>`) in `next/image`. **Creating the R2 bucket needs your Cloudflare account. Do it before Step 6**, when admin photo uploads arrive.
 
-**Done when:** `pnpm db:seed` fills the database and the seeded photos load through `next/image`.
+**Done when:** `pnpm db:seed` fills the database and the seeded photos load through `next/image`. Integration tests prove the database rejects bad prices, stock and alt text.
 
 ### Step 4: Shop pages · ~5 days
 1. **Home:**

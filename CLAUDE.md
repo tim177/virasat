@@ -46,7 +46,13 @@ TOOLING NOTES (learned in Step 1)
   <Suspense> boundary and call `await connection()` first (see app/page.tsx).
 - Prisma 7: client is generated to lib/generated/prisma (git-ignored, rebuilt on install);
   import PrismaClient from "@/lib/generated/prisma/client"; use getDb() from lib/db.ts.
-  Datasource URL lives in prisma.config.ts, not schema.prisma.
+  Datasource URL lives in prisma.config.ts, not schema.prisma. `prisma migrate dev` no longer
+  regenerates the client, so use `pnpm db:migrate` (does both). Money/stock/slug CHECK
+  constraints are hand-written at the end of migration SQL; add new ones the same way
+  (create with --create-only, append SQL) and cover them in tests/integration.
+- Tests: `pnpm test` = unit only (no database). `pnpm test:integration` needs the local
+  database migrated and seeded (`pnpm db:up && pnpm db:deploy && pnpm db:seed`); write
+  integration tests so they never leave rows behind (roll back in a transaction).
 - pnpm 12 blocks package install scripts unless listed under allowBuilds in
   pnpm-workspace.yaml, and rejects versions published within its minimum release age.
   Pick an older version instead of adding exclusions.

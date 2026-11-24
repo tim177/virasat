@@ -67,6 +67,15 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Apply database migrations
+        run: pnpm db:deploy
+
+      - name: Seed sample catalogue
+        run: pnpm db:seed
+
+      - name: Integration tests
+        run: pnpm test:integration
+
       - name: Build
         run: pnpm build
 

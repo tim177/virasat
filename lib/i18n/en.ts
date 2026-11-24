@@ -21,6 +21,22 @@ export const en = {
     helpHeading: "Help",
     aboutHeading: "Virasat",
   },
+  catalog: {
+    customFitBadge: "Custom fit available",
+    newArrivals: "New arrivals",
+    occasions: {
+      wedding: "Wedding",
+      sangeet: "Sangeet",
+      mehendi: "Mehendi",
+      reception: "Reception",
+      festive: "Festive",
+      party: "Party",
+    },
+    genders: {
+      women: "Women",
+      men: "Men",
+    },
+  },
   categories: {
     lehengas: "Lehengas",
     sarees: "Sarees",

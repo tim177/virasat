@@ -1,15 +1,13 @@
+import { categories } from "@/lib/catalog";
 import { en } from "@/lib/i18n/en";
 
 export type NavLink = { href: string; label: string };
 
 /** Shop categories, in menu order. Category pages arrive in Step 4. */
-export const shopCategories: NavLink[] = [
-  { href: "/c/lehengas", label: en.categories.lehengas },
-  { href: "/c/sarees", label: en.categories.sarees },
-  { href: "/c/anarkalis", label: en.categories.anarkalis },
-  { href: "/c/sherwanis", label: en.categories.sherwanis },
-  { href: "/c/kurta-sets", label: en.categories.kurtaSets },
-];
+export const shopCategories: NavLink[] = categories.map((category) => ({
+  href: `/c/${category.slug}`,
+  label: category.label,
+}));
 
 /** Help and policy pages. These pages arrive in Step 8. */
 export const helpLinks: NavLink[] = [

@@ -2,5 +2,6 @@ allowBuilds:
   "@prisma/engines": true
   prisma: true
   core-js: false
+  esbuild: false
   sharp: false
   unrs-resolver: false
