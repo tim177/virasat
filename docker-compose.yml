@@ -1,0 +1,24 @@
+# Local development only: PostgreSQL 16.
+# Start: pnpm db:up   Stop: pnpm db:down
+# The credentials below are for your laptop only. Never reuse them on a server.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: virasat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: virasat
+      POSTGRES_PASSWORD: virasat_local_dev
+      POSTGRES_DB: virasat
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - virasat-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virasat -d virasat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  virasat-pgdata:

@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+lib/generated/
+.next/
+playwright-report/
+test-results/
+# Specs and agent instruction files are written by hand; don't reformat them.
+claude/
+CLAUDE.md
+AGENTS.md
