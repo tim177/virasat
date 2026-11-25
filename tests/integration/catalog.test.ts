@@ -2,9 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, describe, expect, it } from "vitest";
 
+import {
+  queryFacets,
+  queryListing,
+  queryProductBySlug,
+  queryPublishedSlugs,
+  queryRelated,
+  querySearch,
+  type ListingFilters,
+} from "@/lib/catalog-queries";
 import { getDb } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { getNewestProducts } from "@/lib/products";
+import { toProductCard } from "@/lib/product-cards";
+import { parseSearchQuery } from "@/lib/search-terms";
 import { seedProducts } from "@/prisma/seed-data";
 
 // Needs the local database migrated and seeded: pnpm db:up && pnpm db:deploy && pnpm db:seed
@@ -14,6 +24,17 @@ const db = getDb();
 afterAll(async () => {
   await db.$disconnect();
 });
+
+const noFilters: ListingFilters = { occasions: [], colours: [], fabrics: [], sort: "newest" };
+
+async function getNewestProducts(limit: number) {
+  const { products } = await queryListing(noFilters, limit);
+  return products.map(toProductCard);
+}
+
+const seedSlugs = new Set(seedProducts.map((p) => p.slug));
+const onlySeed = <T extends { slug: string }>(rows: T[]) =>
+  rows.filter((r) => seedSlugs.has(r.slug));
 
 describe("seeded catalogue", () => {
   it("contains every seed product with photos and sizes", async () => {
@@ -53,6 +74,85 @@ describe("seeded catalogue", () => {
     const [first] = await getNewestProducts(1);
     expect(first.image?.src).toMatch(/^\/seed\/.+-1\.webp$/);
     expect(first.image?.alt).toMatch(/front view$/);
+  });
+});
+
+describe("shop queries", () => {
+  it("filters a category by occasion and colour", async () => {
+    const { products } = await queryListing(
+      { ...noFilters, category: "lehenga", occasions: ["wedding"], colours: ["Red"] },
+      24,
+    );
+    expect(onlySeed(products).map((p) => p.slug)).toEqual(["crimson-silk-bridal-lehenga"]);
+  });
+
+  it("sorts by price both ways", async () => {
+    const asc = await queryListing({ ...noFilters, sort: "price-asc" }, 100);
+    const desc = await queryListing({ ...noFilters, sort: "price-desc" }, 100);
+    const ascPrices = asc.products.map((p) => p.priceCents);
+    expect(ascPrices).toEqual([...ascPrices].sort((a, b) => a - b));
+    expect(desc.products.map((p) => p.priceCents)).toEqual([...ascPrices].reverse());
+  });
+
+  it("returns the total alongside a limited page", async () => {
+    const page = await queryListing(noFilters, 5);
+    expect(page.products).toHaveLength(5);
+    expect(page.total).toBeGreaterThanOrEqual(12);
+  });
+
+  it("only offers filter values that exist in the category", async () => {
+    const facets = await queryFacets("sherwani");
+    expect(facets.colours).toEqual(expect.arrayContaining(["Ivory", "Maroon"]));
+    expect(facets.colours).not.toContain("Pink");
+    expect(facets.occasions).toContain("wedding");
+  });
+
+  it("loads a published product with ordered photos and sizes", async () => {
+    const product = await queryProductBySlug("blush-organza-lehenga");
+    expect(product?.images.map((i) => i.url)).toEqual([
+      "/seed/blush-organza-lehenga-1.webp",
+      "/seed/blush-organza-lehenga-2.webp",
+    ]);
+    expect(product?.variants.map((v) => v.size)[0]).toBe("XS (US 0–2)");
+    expect(product?.variants.find((v) => v.size.startsWith("M "))?.stock).toBe(0);
+  });
+
+  it("never loads a draft product page", async () => {
+    expect(await queryProductBySlug("gold-tissue-lehenga")).toBeNull();
+    const slugs = (await queryPublishedSlugs()).map((s) => s.slug);
+    expect(slugs).not.toContain("gold-tissue-lehenga");
+    expect(slugs).toContain("crimson-silk-bridal-lehenga");
+  });
+
+  it("suggests related pieces from the same category, excluding the current one", async () => {
+    const related = await queryRelated("anarkali", "emerald-georgette-anarkali", 4);
+    expect(related.map((r) => r.slug)).toContain("midnight-blue-velvet-anarkali");
+    expect(related.map((r) => r.slug)).not.toContain("emerald-georgette-anarkali");
+  });
+});
+
+describe("search", () => {
+  const search = async (q: string) =>
+    onlySeed((await querySearch(parseSearchQuery(q), 50)).products).map((p) => p.slug);
+
+  it("finds lehengas by a regional spelling", async () => {
+    const results = await search("ghagra");
+    expect(results.length).toBe(4);
+    expect(results).toContain("marigold-cotton-silk-lehenga");
+  });
+
+  it("combines category, occasion and colour", async () => {
+    expect(await search("red lehenga for wedding")).toEqual(["crimson-silk-bridal-lehenga"]);
+  });
+
+  it("matches fabric and work words in any case", async () => {
+    expect(await search("CHIKANKARI")).toEqual(["ivory-chikankari-georgette-saree"]);
+    expect(await search("white saree")).toEqual(["ivory-chikankari-georgette-saree"]);
+  });
+
+  it("returns nothing for unknown words and never returns drafts", async () => {
+    expect(await search("tuxedo")).toEqual([]);
+    expect(await search("tissue")).toEqual([]);
   });
 });
 

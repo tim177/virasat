@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test("home page loads and reaches the database", async ({ page }) => {
+test("home page shows the hero, trust points and categories", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "Virasat" })).toBeVisible();
-  await expect(page.getByTestId("db-status")).toContainText("Database: connected");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("your celebrations");
+  await expect(page.getByRole("region", { name: "Why shop with Virasat" })).toContainText(
+    "Duties & taxes included",
+  );
+  const categories = page.getByRole("region", { name: "Shop by category" });
+  await expect(categories.getByRole("link")).toHaveCount(5);
 });
 
 test("seeded products show with photos served by the image optimizer", async ({ page }) => {

@@ -113,7 +113,9 @@ test.describe("design system", () => {
 test.describe("site chrome", () => {
   test("home page has no WCAG violations", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("db-status")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "New arrivals" }).getByRole("article"),
+    ).toHaveCount(4);
     await expectNoAxeViolations(page);
   });
 

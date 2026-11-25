@@ -326,6 +326,18 @@ Each step ends with **"Done when"**. Finish it before starting the next step.
 
 **Done when:** on a phone, Lighthouse scores are **≥ 90 performance** and **100 accessibility** on the home, category and product pages; everything works at 360px width; and a Playwright browse test passes.
 
+**Notes from building Step 4:**
+- An extra **`/shop`** page lists every piece (with a category filter). The home page's occasion links land there.
+- **Not-found pages:** an unknown product or category shows the shop's not-found page with a `noindex` tag. With Cache Components the response has already started as HTTP 200 by then (documented Next.js 16 behaviour), so it isn't a 404 status. Search engines still drop it.
+- **"Add to bag"** shows an "almost ready" message until the bag exists (Step 5).
+- **Lighthouse (mobile, local production build, median of 3):** home 91, category 91, product 93 for performance; 100 accessibility on all three; layout shift 0.
+- **What it took to hit 90:**
+  - Sentry and PostHog load only when their keys are set.
+  - Grid, hero and category photos render as plain `<img>` via `getImageProps` (no client JavaScript).
+  - The main image uses `fetchPriority="high"`.
+  - Only the body font is preloaded.
+  - Dialogs render their contents only while open.
+
 ### Step 5: Bag, payment, orders and emails · ~5–6 days
 This is the most important step. Take it slowly and test it well.
 

@@ -225,7 +225,7 @@ export default function DesignSystemPage() {
       <Section title="Product cards">
         <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
           {sampleProducts.map((product, index) => (
-            <ProductCard key={product.href} product={product} preloadImage={index === 0} />
+            <ProductCard key={product.href} product={product} priority={index === 0} />
           ))}
         </div>
       </Section>
@@ -300,12 +300,12 @@ export default function DesignSystemPage() {
         />
         <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-3">
-            <Skeleton className="aspect-[3/4]" />
+            <Skeleton className="aspect-3/4" />
             <SkeletonText lines={2} />
           </div>
           <div className="flex flex-col gap-3">
-            <Jaali label="Photo coming soon" className="aspect-[3/4] rounded-card" />
-            <div className="aspect-[3/4] rounded-arch bg-jaali" aria-hidden="true" />
+            <Jaali label="Photo coming soon" className="aspect-3/4 rounded-card" />
+            <div className="aspect-3/4 rounded-arch bg-jaali" aria-hidden="true" />
           </div>
         </div>
         <ZariRule className="max-w-md" />

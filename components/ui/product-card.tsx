@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
@@ -7,6 +6,7 @@ import { en } from "@/lib/i18n/en";
 import { Badge } from "./badge";
 import { Jaali } from "./ornament";
 import { Price } from "./price";
+import { StaticImage } from "./static-image";
 
 export type ProductCardData = {
   href: string;
@@ -22,12 +22,12 @@ export type ProductCardData = {
 /** Product tile for grids. The whole card is one link (a 44px+ target). */
 export function ProductCard({
   product,
-  preloadImage = false,
+  priority = false,
   className,
 }: {
   product: ProductCardData;
-  /** Set on the first visible card only, if it's likely the largest image on screen. */
-  preloadImage?: boolean;
+  /** High-priority loading: set on the first visible card only, when it is likely the largest image on screen. */
+  priority?: boolean;
   className?: string;
 }) {
   return (
@@ -38,13 +38,14 @@ export function ProductCard({
         className,
       )}
     >
-      <div className="relative aspect-[3/4] overflow-hidden rounded-card">
+      <div className="relative aspect-3/4 overflow-hidden rounded-card">
         {product.image ? (
-          <Image
+          <StaticImage
             src={product.image.src}
             alt={product.image.alt}
             fill
-            preload={preloadImage}
+            loading={priority ? "eager" : undefined}
+            fetchPriority={priority ? "high" : undefined}
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
             className="bg-jaali object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
           />

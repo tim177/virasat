@@ -27,6 +27,17 @@ export function formatCents(cents: number, currency: Currency = "USD", locale = 
   return formatterFor(currency, locale).format(cents / 100);
 }
 
+/**
+ * Plain decimal string for machine-readable prices (structured data, Stripe metadata),
+ * built from integer cents without any floating-point maths: 24900 → "249.00".
+ */
+export function centsToDecimalString(cents: number): string {
+  assertCents(cents);
+  const sign = cents < 0 ? "-" : "";
+  const abs = Math.abs(cents);
+  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+}
+
 /** Line total for a quantity of items, in cents. */
 export function lineTotalCents(unitPriceCents: number, quantity: number): number {
   assertCents(unitPriceCents);

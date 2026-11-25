@@ -85,18 +85,22 @@ export function Dialog({ open, onClose, title, children, footer, variant = "moda
         if (event.target === event.currentTarget) dialogRef.current?.close();
       }}
     >
-      <div className="flex h-full max-h-[inherit] flex-col">
-        <div className="flex items-center justify-between gap-4 border-b border-line py-2 pr-2 pl-5">
-          <h2 id={titleId} className="font-display text-h3">
-            {title}
-          </h2>
-          <IconButton label={en.ui.close} onClick={() => dialogRef.current?.close()}>
-            <CloseIcon />
-          </IconButton>
+      {/* Contents are only built while open: a closed dialog (e.g. the mobile filter drawer on
+          a desktop screen) costs nothing to render or hydrate. */}
+      {open ? (
+        <div className="flex h-full max-h-[inherit] flex-col">
+          <div className="flex items-center justify-between gap-4 border-b border-line py-2 pr-2 pl-5">
+            <h2 id={titleId} className="font-display text-h3">
+              {title}
+            </h2>
+            <IconButton label={en.ui.close} onClick={() => dialogRef.current?.close()}>
+              <CloseIcon />
+            </IconButton>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+          {footer ? <div className="border-t border-line px-5 py-4">{footer}</div> : null}
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer ? <div className="border-t border-line px-5 py-4">{footer}</div> : null}
-      </div>
+      ) : null}
     </dialog>
   );
 }

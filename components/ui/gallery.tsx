@@ -16,21 +16,21 @@ export type GalleryImage = { src: string; alt: string };
 export function Gallery({
   images,
   title,
-  preloadFirst = false,
+  priorityFirst = false,
   className,
 }: {
   images: GalleryImage[];
   /** Product title, used to label the gallery for screen readers. */
   title: string;
-  /** Preload the first photo when it's the largest element on the page (product page). */
-  preloadFirst?: boolean;
+  /** Load the first photo at high priority: it is the largest element on the product page. */
+  priorityFirst?: boolean;
   className?: string;
 }) {
   const [index, setIndex] = useState(0);
   const total = images.length;
 
   if (total === 0) {
-    return <Jaali label={en.ui.noPhoto} className={cn("aspect-[3/4] rounded-card", className)} />;
+    return <Jaali label={en.ui.noPhoto} className={cn("aspect-3/4 rounded-card", className)} />;
   }
 
   const current = images[Math.min(index, total - 1)];
@@ -38,13 +38,14 @@ export function Gallery({
 
   return (
     <section aria-label={en.ui.photosOf(title)} className={cn("flex flex-col gap-3", className)}>
-      <div className="relative aspect-[3/4] overflow-hidden rounded-card">
+      <div className="relative aspect-3/4 overflow-hidden rounded-card">
         <Image
           key={current.src}
           src={current.src}
           alt={current.alt}
           fill
-          preload={preloadFirst && index === 0}
+          loading={priorityFirst && index === 0 ? "eager" : undefined}
+          fetchPriority={priorityFirst && index === 0 ? "high" : undefined}
           sizes="(min-width: 1024px) 50vw, 100vw"
           className="bg-jaali object-cover"
         />

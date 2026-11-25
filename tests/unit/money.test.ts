@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { assertCents, formatCents, lineTotalCents } from "@/lib/money";
+import { assertCents, centsToDecimalString, formatCents, lineTotalCents } from "@/lib/money";
+
+describe("centsToDecimalString", () => {
+  it.each([
+    [24900, "249.00"],
+    [32950, "329.50"],
+    [5, "0.05"],
+    [0, "0.00"],
+    [-1250, "-12.50"],
+    [123456789, "1234567.89"],
+  ])("%i cents → %s", (cents, expected) => {
+    expect(centsToDecimalString(cents)).toBe(expected);
+  });
+
+  it("rejects fractional cents", () => {
+    expect(() => centsToDecimalString(1.5)).toThrow(RangeError);
+  });
+});
 
 describe("formatCents", () => {
   it("formats whole dollars", () => {

@@ -57,6 +57,25 @@ TOOLING NOTES (learned in Step 1)
   pnpm-workspace.yaml, and rejects versions published within its minimum release age.
   Pick an older version instead of adding exclusions.
 
+SHOP PATTERNS (learned in Step 4)
+- Catalogue data: plain queries in lib/catalog-queries.ts (testable, used by integration
+  tests) wrapped by cached functions in lib/products.ts ("use cache" + cacheTag("products")).
+  After any product or stock change, call revalidateTag(PRODUCTS_TAG) so the shop refreshes.
+- Pages read URL search params only inside <Suspense> (see components/shop/product-listing).
+  Filters and sort live in the URL (lib/listing-params.ts, Zod-validated, never throws).
+- Performance budget is tight on mobile. Keep client JavaScript small:
+  - Use <StaticImage> (getImageProps, no client JS) for non-interactive photos; <Image> only
+    inside client components.
+  - Third-party SDKs load only when their env key is set (see instrumentation-client.ts).
+  - Mark only the main above-the-fold image with priority (fetchPriority="high").
+  - Dialog renders its contents only while open.
+- notFound() on a dynamic page can't change the status after streaming starts (Cache
+  Components): the shop's not-found page shows with noindex. Don't fight this with proxies.
+- Buttons that explain why they're unavailable use aria-disabled (still focusable), not
+  disabled. Playwright won't click them: tests press Enter after focusing.
+- Today's date in client components: useToday() (lib/use-today.ts), never new Date() during
+  render, or prerendered pages show the build date.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.
