@@ -45,6 +45,21 @@ All design-system components are previewed at **http://localhost:3000/dev/compon
 | `pnpm db:seed`                | Add or refresh the sample products (refuses non-local databases)                |
 | `pnpm db:studio`              | Browse the database in the browser                                              |
 | `pnpm stripe:listen [port]`   | Forward Stripe test webhooks to `localhost:[port]` (default 3000)               |
+| `pnpm admin:create ...`       | Create an admin login, or reset one (see "Admin" below)                         |
+
+## Admin
+
+The admin is at **/admin**. There is no sign-up page: admins are created from the command line, with two-step sign-in already turned on.
+
+```bash
+pnpm admin:create --email you@example.com --name "Your Name"
+```
+
+It prints a random password, a QR code for an authenticator app (Google Authenticator, 1Password, Authy…) and 10 backup codes, **once**. Save them in a password manager. Signing in needs the password and then a 6-digit code from the app (or one backup code). Sessions end after 12 hours.
+
+Lost the password or the phone? Run the same command with `--reset`: it replaces the password, the authenticator and the backup codes, and signs that admin out everywhere.
+
+`BETTER_AUTH_SECRET` must be set in `.env` (see `.env.example`), and sign-in only works on the address in `SITE_URL`.
 
 ## Payments and emails locally
 

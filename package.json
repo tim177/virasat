@@ -26,6 +26,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "stripe:listen": "node scripts/stripe-listen.mjs",
+    "admin:create": "node --conditions=react-server --import tsx scripts/create-admin.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -33,12 +34,15 @@
     "@prisma/client": "7.10.1",
     "@react-email/render": "2.3.1",
     "@sentry/nextjs": "11.13.0",
+    "better-auth": "1.7.26",
     "next": "16.4.6",
     "posthog-js": "1.450.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "resend": "6.38.1",
+    "server-only": "0.0.1",
     "stripe": "23.1.0",
+    "uqr": "0.1.3",
     "zod": "4.6.7"
   },
   "devDependencies": {

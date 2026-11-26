@@ -101,6 +101,25 @@ ORDER AND STRIPE PATTERNS (learned in Step 5)
 - Locally, always run `pnpm stripe:listen [port]`, never plain `stripe listen`: the CLI may be
   logged into another Stripe account, and the script passes the .env key.
 
+ADMIN AND LOGIN PATTERNS (learned in Step 6)
+- Better Auth lives in lib/auth.ts (getAuth(), created lazily so builds need no secret);
+  browser calls go through lib/auth-client.ts. Ids come from Prisma (generateId: false).
+- Admin = role "admin" + twoFactorEnabled + a sign-in less than 12 hours old
+  (adminFromSession in lib/admin-access.ts, unit-tested). Every admin page, Server Action and
+  admin API route calls requireAdmin() (lib/admin-auth.ts) first, inside a <Suspense>
+  boundary. Layouts and proxy.ts are not the security check (proxy.ts only redirects
+  visitors with no session cookie).
+- Admin pages sit in app/admin/(panel)/ (shared header); app/admin/login is outside it.
+  app/admin/layout.tsx sets noindex and `instant = false`.
+- No sign-up: admins come only from `pnpm admin:create` (lib/admin-accounts.ts), which
+  turns on TOTP through Better Auth's own API and deletes the setup session.
+- Scripts that import server code run as `node --conditions=react-server --import tsx ...`
+  so `import "server-only"` resolves to an empty module (see the admin:create script).
+- Tests make TOTP codes with lib/totp.ts. E2e creates admins by running the script in a
+  subprocess (tests/e2e/helpers/admin.ts) and deletes them with deleteUsersMatching().
+- Next.js keeps an empty role="alert" route announcer on every page: in Playwright, filter
+  getByRole("alert") by text.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

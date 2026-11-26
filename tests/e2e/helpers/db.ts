@@ -52,6 +52,20 @@ export async function deleteOrdersMatching(emailFragment: string): Promise<void>
   await db().query(`DELETE FROM orders WHERE email LIKE $1`, [`%${emailFragment}%`]);
 }
 
+/** Removes users made by a test run, with their sessions, logins and pending sign-ins. */
+export async function deleteUsersMatching(emailFragment: string): Promise<void> {
+  const pattern = `%${emailFragment}%`;
+  await db().query(
+    `WITH u AS (SELECT id::text AS id FROM users WHERE email LIKE $1),
+          p AS (SELECT identifier FROM verifications WHERE value IN (SELECT id FROM u))
+     DELETE FROM verifications
+     WHERE value IN (SELECT id FROM u)
+        OR identifier IN (SELECT '2fa-attempts-' || identifier FROM p)`,
+    [pattern],
+  );
+  await db().query(`DELETE FROM users WHERE email LIKE $1`, [pattern]);
+}
+
 export async function closeDb(): Promise<void> {
   await pool?.end();
   pool = undefined;

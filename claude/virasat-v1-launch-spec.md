@@ -421,6 +421,14 @@ This is the most important step. Take it slowly and test it well.
 - A non-admin can't open `/admin`, even by typing the URL.
 - Staging works over HTTPS.
 
+**Notes from building Step 6:**
+- Built in parts, each its own commit: **6a** admin login, **6b** orders, **6c** products and photos, **6d** dashboard and admin log, **6e** deploy.
+- **Admin login (6a):** email and password, then a 6-digit code from an authenticator app (TOTP), or a one-time backup code. There is no sign-up page. `pnpm admin:create` makes an admin with two-step sign-in already on, so no admin account ever exists with only a password. `--reset` replaces a lost password or phone and signs that admin out everywhere. Email codes weren't used for admins, because staging has no email sending yet.
+- **Admin sessions end 12 hours after sign-in.** Customer sessions (Step 7) keep Better Auth's default length.
+- **Login limits:** Better Auth's rate limits are on in production: 10 password tries per minute per IP, 3 tries per 10 seconds on the code step, and a 15-minute lock after 10 wrong codes. **Turnstile on the login forms comes in Step 7** with customer login, once the domain exists; Turnstile keys are tied to a domain.
+- An authenticator code still works for the rest of its 30-second window after it has been used (Better Auth doesn't block reuse). That's acceptable with a password in front and the limits above.
+- The tables are `users` (with `role`), `sessions`, `accounts`, `verifications` and `two_factors`. `admin_log` arrives in 6b with the first admin changes.
+
 ### Step 7: Accounts, custom fit and order status · ~5 days
 1. **Login** (`/login`):
    - Email → a 6-digit code by email, or "Continue with Google".

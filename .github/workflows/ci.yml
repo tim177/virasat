@@ -45,6 +45,8 @@ jobs:
       # Emails are written to .outbox/ instead of being sent.
       EMAIL_OUTBOX: "true"
       CRON_SECRET: ci-cron-secret
+      # Test-only value for login cookies and authenticator secrets in CI.
+      BETTER_AUTH_SECRET: ci-only-better-auth-secret-0123456789abcdef
 
     steps:
       - uses: actions/checkout@v5
