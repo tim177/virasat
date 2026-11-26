@@ -15,7 +15,9 @@ function createAuth() {
     appName: "Virasat",
     baseURL: siteUrl,
     secret: process.env.BETTER_AUTH_SECRET,
-    database: prismaAdapter(getDb(), { provider: "postgresql", transaction: true }),
+    // Better Auth's default (no interactive transactions): with them, a sign-in could stall
+    // under load waiting for a database connection inside the transaction.
+    database: prismaAdapter(getDb(), { provider: "postgresql" }),
     emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: 12 },
     user: {
       additionalFields: {

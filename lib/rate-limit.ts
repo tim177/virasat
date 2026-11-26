@@ -7,10 +7,15 @@ type Window = { count: number; resetAt: number };
 const windows = new Map<string, Window>();
 
 export function clientIp(request: Request): string {
+  return clientIpFromHeaders(request.headers);
+}
+
+/** Same as clientIp, from request headers (Server Actions read them with headers()). */
+export function clientIpFromHeaders(headers: Headers): string {
   return (
-    request.headers.get("cf-connecting-ip") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
+    headers.get("cf-connecting-ip") ??
+    headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headers.get("x-real-ip") ??
     "local"
   );
 }

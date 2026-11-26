@@ -5,6 +5,8 @@ import { randomBytes } from "node:crypto";
 import type Stripe from "stripe";
 import { z } from "zod";
 
+import { writeAdminLog, type AdminActor } from "@/lib/admin-log";
+import { courierName } from "@/lib/couriers";
 import { getDb } from "@/lib/db";
 import { draftLinesSchema } from "@/lib/draft-schema";
 import { Prisma, type OrderStatus } from "@/lib/generated/prisma/client";
@@ -201,29 +203,157 @@ export async function createOrderFromSession(
   }
 }
 
-/** Moves an order to a new status if the rules allow it, and records the change. */
+/** The order moved on since the admin's page loaded (another tab, or Stripe). */
+export class OrderChangedError extends Error {
+  constructor(readonly current: OrderStatus) {
+    super(`The order is now "${current}"`);
+    this.name = "OrderChangedError";
+  }
+}
+
+export type TransitionOptions = {
+  note?: string;
+  /** Required when moving to "shipped". */
+  shipment?: { courier: string; trackingNumber: string };
+  /** The status the admin saw. If the order has moved on since, nothing changes. */
+  expectedFrom?: OrderStatus;
+  /** When cancelling: put ready-made pieces back in stock. */
+  restock?: boolean;
+  /** Set for admin changes: also writes admin_log, in the same transaction. */
+  admin?: AdminActor;
+};
+
+export type TransitionResult = { from: OrderStatus; to: OrderStatus; restocked: number };
+
+/**
+ * Moves an order to a new status if the rules allow it, and records the change in
+ * order_events (and admin_log for admin changes). The only way statuses change (rule 3).
+ * Emails are the caller's job, after this returns (rule 4).
+ */
 export async function transitionOrder(
   orderId: string,
   to: OrderStatus,
   actor: string,
-  note?: string,
-): Promise<void> {
-  await getDb().$transaction(async (tx) => {
-    const order = await tx.order.findUniqueOrThrow({
-      where: { id: orderId },
-      select: { status: true, items: { select: { isCustom: true } } },
+  options: TransitionOptions = {},
+): Promise<TransitionResult> {
+  const { shipment, expectedFrom, admin } = options;
+  if (to === "shipped" && !shipment) {
+    throw new Error("Marking an order as shipped needs the courier and tracking number");
+  }
+
+  try {
+    return await getDb().$transaction(async (tx) => {
+      const order = await tx.order.findUniqueOrThrow({
+        where: { id: orderId },
+        select: {
+          status: true,
+          courier: true,
+          trackingNumber: true,
+          items: { select: { isCustom: true, variantId: true, quantity: true } },
+        },
+      });
+      if (expectedFrom && order.status !== expectedFrom) throw new OrderChangedError(order.status);
+      const hasCustomItems = order.items.some((item) => item.isCustom);
+      if (!canTransition(order.status, to, { hasCustomItems })) {
+        throw new InvalidTransitionError(order.status, to);
+      }
+
+      // Matching on the old status stops two simultaneous changes from both succeeding.
+      await tx.order.update({
+        where: { id: orderId, status: order.status },
+        data: {
+          status: to,
+          [statusTimestampField[to]]: new Date(),
+          ...(shipment
+            ? { courier: shipment.courier, trackingNumber: shipment.trackingNumber }
+            : {}),
+        },
+      });
+
+      // Ready-made pieces go back on sale; custom-fit pieces and made-to-order sizes don't.
+      let restocked = 0;
+      if (to === "cancelled" && options.restock) {
+        for (const item of order.items) {
+          if (item.isCustom || !item.variantId) continue;
+          restocked += await tx.$executeRaw`
+            UPDATE variants SET stock = stock + ${item.quantity}
+            WHERE id = ${item.variantId}::uuid AND stock IS NOT NULL`;
+        }
+      }
+
+      const details = [
+        shipment ? `${courierName(shipment.courier)} ${shipment.trackingNumber}` : null,
+        restocked > 0 ? "Ready-made pieces put back in stock" : null,
+        options.note ?? null,
+      ].filter(Boolean);
+      await tx.orderEvent.create({
+        data: {
+          orderId,
+          fromStatus: order.status,
+          toStatus: to,
+          actor,
+          note: details.length > 0 ? details.join(" · ") : null,
+        },
+      });
+
+      if (admin) {
+        await writeAdminLog(tx, admin, {
+          action: "order.status",
+          entity: "order",
+          entityId: orderId,
+          before: {
+            status: order.status,
+            courier: order.courier,
+            trackingNumber: order.trackingNumber,
+          },
+          after: {
+            status: to,
+            courier: shipment?.courier ?? order.courier,
+            trackingNumber: shipment?.trackingNumber ?? order.trackingNumber,
+            ...(to === "cancelled" ? { restockedLines: restocked } : {}),
+            ...(options.note ? { note: options.note } : {}),
+          },
+        });
+      }
+      return { from: order.status, to, restocked };
     });
-    const hasCustomItems = order.items.some((item) => item.isCustom);
-    if (!canTransition(order.status, to, { hasCustomItems })) {
-      throw new InvalidTransitionError(order.status, to);
+  } catch (error) {
+    // The order changed between our read and our update (a simultaneous change won).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      const now = await getDb().order.findUnique({
+        where: { id: orderId },
+        select: { status: true },
+      });
+      if (now) throw new OrderChangedError(now.status);
     }
-    // Matching on the old status stops two simultaneous changes from both succeeding.
-    await tx.order.update({
-      where: { id: orderId, status: order.status },
-      data: { status: to, [statusTimestampField[to]]: new Date() },
-    });
+    throw error;
+  }
+}
+
+/** Records on the order's history that an admin sent the confirmation email again. */
+export async function recordConfirmationResent(orderId: string, admin: AdminActor) {
+  await getDb().$transaction(async (tx) => {
     await tx.orderEvent.create({
-      data: { orderId, fromStatus: order.status, toStatus: to, actor, note: note ?? null },
+      data: { orderId, actor: admin.adminId, note: "Confirmation email sent again" },
+    });
+    await writeAdminLog(tx, admin, {
+      action: "order.resend_confirmation",
+      entity: "order",
+      entityId: orderId,
+    });
+  });
+}
+
+/** An internal note from the admin on the order's history (not shown to the customer). */
+export async function addOrderNote(orderId: string, note: string, admin: AdminActor) {
+  await getDb().$transaction(async (tx) => {
+    await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { id: true } });
+    await tx.orderEvent.create({ data: { orderId, actor: admin.adminId, note } });
+    await writeAdminLog(tx, admin, {
+      action: "order.note",
+      entity: "order",
+      entityId: orderId,
+      after: { note },
     });
   });
 }
@@ -251,12 +381,9 @@ export async function applyChargeRefund(
 
   if (charge.refunded) {
     if (order.status === "refunded") return { status: "skipped", reason: "already refunded" };
-    await transitionOrder(
-      order.id,
-      "refunded",
-      "stripe",
-      `Refunded ${formatCents(charge.amount_refunded)} in Stripe`,
-    );
+    await transitionOrder(order.id, "refunded", "stripe", {
+      note: `Refunded ${formatCents(charge.amount_refunded)} in Stripe`,
+    });
     return { status: "refunded", orderId: order.id, amountCents: charge.amount_refunded };
   }
 

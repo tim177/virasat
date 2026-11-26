@@ -6,12 +6,18 @@ import { z } from "zod";
 
 import {
   AdminNewOrderEmail,
+  OrderCancelledEmail,
   OrderConfirmationEmail,
+  OrderDeliveredEmail,
+  OrderShippedEmail,
   RefundEmail,
   type EmailOrder,
 } from "@/emails/order-emails";
+import { courierName, trackingUrl } from "@/lib/couriers";
 import { getDb } from "@/lib/db";
+import { SHIPPING_BUSINESS_DAYS } from "@/lib/delivery";
 import { sendEmail } from "@/lib/email/send";
+import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client";
 import { en } from "@/lib/i18n/en";
 import { formatCents } from "@/lib/money";
 
@@ -27,13 +33,24 @@ const addressSchema = z.object({
   country: z.string(),
 });
 
-async function loadEmailOrder(
-  orderId: string,
-): Promise<EmailOrder & { confirmationSentAt: Date | null; adminAlertSentAt: Date | null }> {
+type LoadedEmailOrder = EmailOrder & {
+  status: OrderStatus;
+  courier: string | null;
+  trackingNumber: string | null;
+  confirmationSentAt: Date | null;
+  adminAlertSentAt: Date | null;
+  statusEmailSentFor: OrderStatus | null;
+};
+
+async function loadEmailOrder(orderId: string): Promise<LoadedEmailOrder> {
   const order = await getDb().order.findUniqueOrThrow({
     where: { id: orderId },
     select: {
       number: true,
+      status: true,
+      courier: true,
+      trackingNumber: true,
+      statusEmailSentFor: true,
       customerName: true,
       email: true,
       shippingAddress: true,
@@ -74,9 +91,9 @@ async function renderEmail(element: ReactElement) {
   return { html, text };
 }
 
-async function sendConfirmation(orderId: string): Promise<void> {
+async function sendConfirmation(orderId: string, { again = false } = {}): Promise<void> {
   const order = await loadEmailOrder(orderId);
-  if (order.confirmationSentAt) return;
+  if (order.confirmationSentAt && !again) return;
   const { html, text } = await renderEmail(<OrderConfirmationEmail order={order} />);
   await sendEmail({
     to: order.email,
@@ -86,8 +103,72 @@ async function sendConfirmation(orderId: string): Promise<void> {
     tag: "order-confirmation",
   });
   await getDb().order.updateMany({
-    where: { id: orderId, confirmationSentAt: null },
+    where: { id: orderId, ...(again ? {} : { confirmationSentAt: null }) },
     data: { confirmationSentAt: new Date() },
+  });
+}
+
+/** Admin's "Resend confirmation email". Throws if sending fails, so the admin is told. */
+export async function resendConfirmation(orderId: string): Promise<void> {
+  await sendConfirmation(orderId, { again: true });
+}
+
+function statusEmail(order: LoadedEmailOrder) {
+  switch (order.status) {
+    case "shipped": {
+      const courier = order.courier ?? "";
+      const trackingNumber = order.trackingNumber ?? "";
+      return {
+        subject: en.email.shippedSubject(order.number),
+        element: (
+          <OrderShippedEmail
+            order={order}
+            courier={courierName(courier)}
+            trackingNumber={trackingNumber}
+            trackingUrl={trackingUrl(courier, trackingNumber)}
+            shippingDays={SHIPPING_BUSINESS_DAYS}
+          />
+        ),
+      };
+    }
+    case "delivered":
+      return {
+        subject: en.email.deliveredSubject(order.number),
+        element: <OrderDeliveredEmail order={order} />,
+      };
+    case "cancelled":
+      return {
+        subject: en.email.cancelledSubject(order.number),
+        element: <OrderCancelledEmail order={order} />,
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * The customer email for the order's current status (shipped, delivered or cancelled), sent
+ * once per status. Never throws; a failure is retried by the cron job.
+ */
+export async function sendStatusEmail(orderId: string): Promise<boolean> {
+  return safely(`status email for ${orderId}`, async () => {
+    const order = await loadEmailOrder(orderId);
+    if (order.statusEmailSentFor === order.status) return;
+    const email = statusEmail(order);
+    if (!email) return;
+    const { html, text } = await renderEmail(email.element);
+    await sendEmail({
+      to: order.email,
+      subject: email.subject,
+      html,
+      text,
+      tag: `order-${order.status}`,
+    });
+    // Only if the status hasn't changed meanwhile; otherwise the next status gets its email.
+    await getDb().order.updateMany({
+      where: { id: orderId, status: order.status },
+      data: { statusEmailSentFor: order.status },
+    });
   });
 }
 
@@ -156,7 +237,7 @@ export async function sendRefundEmail(orderId: string, amountCents: number): Pro
   }
 }
 
-/** Cron job: sends confirmations and admin alerts that failed earlier. */
+/** Cron job: sends confirmations, admin alerts and status emails that failed earlier. */
 export async function retryUnsentEmails(): Promise<{ attempted: number }> {
   const olderThan = new Date(Date.now() - 2 * 60 * 1000);
   const orders = await getDb().order.findMany({
@@ -172,5 +253,27 @@ export async function retryUnsentEmails(): Promise<{ attempted: number }> {
     orderBy: { paidAt: "asc" },
   });
   for (const order of orders) await sendNewOrderEmails(order.id);
-  return { attempted: orders.length };
+
+  // Shipped, delivered and cancelled emails that failed. Only for changes in the last 3 days,
+  // so an old order never gets a surprise email.
+  const changed = { lt: olderThan, gt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) };
+  const unsent = (status: OrderStatus): Prisma.OrderWhereInput => ({
+    status,
+    OR: [{ statusEmailSentFor: null }, { statusEmailSentFor: { not: status } }],
+  });
+  const statusOrders = await getDb().order.findMany({
+    where: {
+      OR: [
+        { ...unsent("shipped"), shippedAt: changed },
+        { ...unsent("delivered"), deliveredAt: changed },
+        { ...unsent("cancelled"), cancelledAt: changed },
+      ],
+    },
+    select: { id: true },
+    take: 50,
+    orderBy: { updatedAt: "asc" },
+  });
+  for (const order of statusOrders) await sendStatusEmail(order.id);
+
+  return { attempted: orders.length + statusOrders.length };
 }

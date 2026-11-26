@@ -428,6 +428,13 @@ This is the most important step. Take it slowly and test it well.
 - **Login limits:** Better Auth's rate limits are on in production: 10 password tries per minute per IP, 3 tries per 10 seconds on the code step, and a 15-minute lock after 10 wrong codes. **Turnstile on the login forms comes in Step 7** with customer login, once the domain exists; Turnstile keys are tied to a domain.
 - An authenticator code still works for the rest of its 30-second window after it has been used (Better Auth doesn't block reuse). That's acceptable with a password in front and the limits above.
 - The tables are `users` (with `role`), `sessions`, `accounts`, `verifications` and `two_factors`. `admin_log` arrives in 6b with the first admin changes.
+- **Orders (6b):** `/admin/orders` has status tabs with counts and a search by order number (`VRS-1001` or `1001`) or email. The order page shows the items, measurements, customer, payment (with a link to the payment in Stripe), shipment and history, with buttons only for the allowed next steps. It also has internal notes and "Resend confirmation email".
+- **Refunds stay in Stripe.** "Cancel order" emails the customer that the order is cancelled and a refund is coming. You then refund in Stripe (the order page links there), and the webhook moves the order to Refunded and sends the refund email. Cancelling can put ready-made pieces back in stock (a checkbox, on by default).
+- **Shipped** needs a courier (DHL Express, FedEx, UPS or other) and a tracking number. The email links to the courier's tracking page. A database rule makes sure every shipped or delivered order has both.
+- **Customer emails on shipped, delivered and cancelled** are sent once per status. If one fails, the hourly cron sends it again (`orders.status_email_sent_for`), but only for changes from the last 3 days.
+- A page left open in another tab can't move an order twice: each action checks the status the admin saw.
+- `admin_log` is written in the same transaction as each change. Admins with log entries can't be deleted, so the history stays complete. Admin dates are shown in India time (IST).
+- Status changes and internal notes are both `order_events` rows. The customer's order page (Step 7) will show only the status changes, never the notes.
 
 ### Step 7: Accounts, custom fit and order status · ~5 days
 1. **Login** (`/login`):

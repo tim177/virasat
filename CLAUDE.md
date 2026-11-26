@@ -104,6 +104,7 @@ ORDER AND STRIPE PATTERNS (learned in Step 5)
 ADMIN AND LOGIN PATTERNS (learned in Step 6)
 - Better Auth lives in lib/auth.ts (getAuth(), created lazily so builds need no secret);
   browser calls go through lib/auth-client.ts. Ids come from Prisma (generateId: false).
+  Keep the Prisma adapter's `transaction` option off: with it, sign-ins stalled under load.
 - Admin = role "admin" + twoFactorEnabled + a sign-in less than 12 hours old
   (adminFromSession in lib/admin-access.ts, unit-tested). Every admin page, Server Action and
   admin API route calls requireAdmin() (lib/admin-auth.ts) first, inside a <Suspense>
@@ -119,6 +120,15 @@ ADMIN AND LOGIN PATTERNS (learned in Step 6)
   subprocess (tests/e2e/helpers/admin.ts) and deletes them with deleteUsersMatching().
 - Next.js keeps an empty role="alert" route announcer on every page: in Playwright, filter
   getByRole("alert") by text.
+- Admin Server Actions (see app/admin/(panel)/orders/[number]/actions.ts): requireAdmin() →
+  Zod-parse formFields(formData) → a lib/ function that takes an AdminActor and writes
+  admin_log in the same transaction (writeAdminLog) → emails via after() → refresh().
+  Return { ok, message } for useActionState; don't setState in effects (lint rule), do it
+  in a wrapper around the action.
+- Customer status emails (shipped/delivered/cancelled) go through sendStatusEmail(); the
+  cron resends while orders.status_email_sent_for differs from status.
+- Admin dates use lib/admin-format.ts (India time). E2e test orders: insertTestOrder() in
+  tests/e2e/helpers/db.ts.
 
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices

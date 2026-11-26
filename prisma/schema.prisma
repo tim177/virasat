@@ -138,40 +138,43 @@ model CheckoutDraft {
 }
 
 model Order {
-  id                    String      @id @default(uuid(7)) @db.Uuid
+  id                    String       @id @default(uuid(7)) @db.Uuid
   /// Shown to customers, e.g. VRS-1001. From a database sequence (see migration).
-  number                String      @unique @default(dbgenerated("('VRS-'::text || nextval('order_number_seq'::regclass))"))
-  status                OrderStatus @default(paid)
+  number                String       @unique @default(dbgenerated("('VRS-'::text || nextval('order_number_seq'::regclass))"))
+  status                OrderStatus  @default(paid)
   email                 String
   phone                 String?
-  customerName          String      @map("customer_name")
+  customerName          String       @map("customer_name")
   /// { line1, line2, city, state, postalCode, country }
-  shippingAddress       Json        @map("shipping_address")
-  currency              String      @default("USD") @db.Char(3)
-  subtotalCents         Int         @map("subtotal_cents")
+  shippingAddress       Json         @map("shipping_address")
+  currency              String       @default("USD") @db.Char(3)
+  subtotalCents         Int          @map("subtotal_cents")
   /// Promotion codes and store credit applied on Stripe's page.
-  discountCents         Int         @default(0) @map("discount_cents")
-  shippingCents         Int         @default(0) @map("shipping_cents")
+  discountCents         Int          @default(0) @map("discount_cents")
+  shippingCents         Int          @default(0) @map("shipping_cents")
   /// What the customer paid: subtotal − discount + shipping (database rule).
-  totalCents            Int         @map("total_cents")
+  totalCents            Int          @map("total_cents")
   /// One order per Stripe Checkout Session: this is what makes the webhook safe to repeat.
-  stripeSessionId       String      @unique @map("stripe_session_id")
-  stripePaymentIntentId String?     @unique @map("stripe_payment_intent_id")
+  stripeSessionId       String       @unique @map("stripe_session_id")
+  stripePaymentIntentId String?      @unique @map("stripe_payment_intent_id")
   /// Secret for the order-status link in emails (Step 7).
-  accessToken           String      @unique @map("access_token")
+  accessToken           String       @unique @map("access_token")
   courier               String?
-  trackingNumber        String?     @map("tracking_number")
-  confirmationSentAt    DateTime?   @map("confirmation_sent_at")
-  adminAlertSentAt      DateTime?   @map("admin_alert_sent_at")
-  paidAt                DateTime    @default(now()) @map("paid_at")
-  confirmedAt           DateTime?   @map("confirmed_at")
-  inProductionAt        DateTime?   @map("in_production_at")
-  shippedAt             DateTime?   @map("shipped_at")
-  deliveredAt           DateTime?   @map("delivered_at")
-  cancelledAt           DateTime?   @map("cancelled_at")
-  refundedAt            DateTime?   @map("refunded_at")
-  createdAt             DateTime    @default(now()) @map("created_at")
-  updatedAt             DateTime    @updatedAt @map("updated_at")
+  trackingNumber        String?      @map("tracking_number")
+  confirmationSentAt    DateTime?    @map("confirmation_sent_at")
+  adminAlertSentAt      DateTime?    @map("admin_alert_sent_at")
+  /// The status whose customer email (shipped, delivered, cancelled) has been sent. The cron
+  /// job resends it while this differs from `status` (lib/order-emails.tsx).
+  statusEmailSentFor    OrderStatus? @map("status_email_sent_for")
+  paidAt                DateTime     @default(now()) @map("paid_at")
+  confirmedAt           DateTime?    @map("confirmed_at")
+  inProductionAt        DateTime?    @map("in_production_at")
+  shippedAt             DateTime?    @map("shipped_at")
+  deliveredAt           DateTime?    @map("delivered_at")
+  cancelledAt           DateTime?    @map("cancelled_at")
+  refundedAt            DateTime?    @map("refunded_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
 
   items  OrderItem[]
   events OrderEvent[]
@@ -245,6 +248,7 @@ model User {
   sessions   Session[]
   accounts   Account[]
   twoFactors TwoFactor[]
+  adminLogs  AdminLog[]
 
   @@map("users")
 }
@@ -313,4 +317,28 @@ model TwoFactor {
   @@unique([userId])
   @@index([secret])
   @@map("two_factors")
+}
+
+// ─── Admin ──────────────────────────────────────────────────────────────────
+
+/// Every admin change: who, when, from where, and the record before and after (CLAUDE.md
+/// rule 7). Written in the same transaction as the change (lib/admin-log.ts).
+model AdminLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  adminUserId String   @map("admin_user_id") @db.Uuid
+  /// What happened, e.g. "order.status", "order.note", "product.update".
+  action      String
+  /// What it happened to: "order" or "product".
+  entity      String
+  entityId    String   @map("entity_id")
+  before      Json?
+  after       Json?
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  /// Admins with log entries can't be deleted, so the history stays complete.
+  admin       User     @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entity, entityId])
+  @@map("admin_log")
 }

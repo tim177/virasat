@@ -163,3 +163,87 @@ export function RefundEmail({ order, amountCents }: { order: EmailOrder; amountC
     </EmailLayout>
   );
 }
+
+/** Item names, sizes and quantities, without prices (for shipping updates). */
+function ItemsList({ order }: { order: EmailOrder }) {
+  return (
+    <ul style={{ ...text, paddingLeft: "20px" }}>
+      {order.items.map((item, index) => (
+        <li key={index} style={{ margin: "0 0 4px" }}>
+          {item.title} · {item.isCustom ? t.customFit : t.size(item.size ?? "")} ·{" "}
+          {t.qty(item.quantity)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const buttonLink: CSSProperties = {
+  display: "inline-block",
+  backgroundColor: c.crimson700,
+  color: c.white,
+  fontFamily: text.fontFamily,
+  fontSize: "15px",
+  fontWeight: 600,
+  textDecoration: "none",
+  padding: "12px 24px",
+  borderRadius: "2px",
+};
+
+export function OrderShippedEmail({
+  order,
+  courier,
+  trackingNumber,
+  trackingUrl,
+  shippingDays,
+}: {
+  order: EmailOrder;
+  courier: string;
+  trackingNumber: string;
+  trackingUrl: string | null;
+  shippingDays: { min: number; max: number };
+}) {
+  return (
+    <EmailLayout preview={t.shippedPreview}>
+      <h1 style={heading}>{t.shippedSubject(order.number)}</h1>
+      <p style={text}>{t.shippedIntro}</p>
+      <p style={{ ...text, fontWeight: 600 }}>{t.tracking(courier, trackingNumber)}</p>
+      {trackingUrl ? (
+        <p style={{ ...text, margin: "16px 0 20px" }}>
+          <a href={trackingUrl} style={buttonLink}>
+            {t.trackParcel}
+          </a>
+        </p>
+      ) : null}
+      <p style={text}>{t.shippedEta(shippingDays.min, shippingDays.max)}</p>
+      <ItemsList order={order} />
+      <h2 style={{ ...heading, fontSize: "20px" }}>{t.shipTo}</h2>
+      <Address order={order} />
+      <p style={muted}>{t.questions}</p>
+    </EmailLayout>
+  );
+}
+
+export function OrderDeliveredEmail({ order }: { order: EmailOrder }) {
+  return (
+    <EmailLayout preview={t.deliveredPreview}>
+      <h1 style={heading}>{t.deliveredSubject(order.number)}</h1>
+      <p style={text}>{t.deliveredIntro}</p>
+      <ItemsList order={order} />
+      <p style={text}>{t.deliveredHelp}</p>
+      <p style={muted}>{t.questions}</p>
+    </EmailLayout>
+  );
+}
+
+export function OrderCancelledEmail({ order }: { order: EmailOrder }) {
+  return (
+    <EmailLayout preview={t.cancelledPreview}>
+      <h1 style={heading}>{t.cancelledSubject(order.number)}</h1>
+      <p style={text}>{t.cancelledIntro}</p>
+      <ItemsList order={order} />
+      <p style={text}>{t.cancelledRefund}</p>
+      <p style={muted}>{t.questions}</p>
+    </EmailLayout>
+  );
+}

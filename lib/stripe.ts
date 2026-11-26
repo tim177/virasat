@@ -21,3 +21,9 @@ export function getWebhookSecret(): string {
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not set. See .env.example.");
   return secret;
 }
+
+/** A payment's page in Stripe's dashboard (test or live mode, matching the key in use). */
+export function stripePaymentUrl(paymentIntentId: string): string {
+  const mode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_") ? "" : "test/";
+  return `https://dashboard.stripe.com/${mode}payments/${encodeURIComponent(paymentIntentId)}`;
+}

@@ -30,6 +30,25 @@ export function nextStatuses(from: OrderStatus, ctx: TransitionContext): OrderSt
   return [...new Set(all)].filter((to) => canTransition(from, to, ctx));
 }
 
+/**
+ * The status buttons the admin sees. Refunds are made in Stripe's dashboard (the webhook
+ * then moves the order to refunded), so there is no "refunded" button.
+ */
+export function adminNextStatuses(from: OrderStatus, ctx: TransitionContext): OrderStatus[] {
+  return nextStatuses(from, ctx).filter((to) => to !== "refunded");
+}
+
+/** Statuses that send the customer an email when an order enters them (lib/order-emails). */
+export const STATUSES_WITH_EMAIL = [
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const satisfies readonly OrderStatus[];
+
+export function sendsStatusEmail(status: OrderStatus): boolean {
+  return (STATUSES_WITH_EMAIL as readonly OrderStatus[]).includes(status);
+}
+
 export class InvalidTransitionError extends Error {
   constructor(
     readonly from: OrderStatus,
