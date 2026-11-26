@@ -2,7 +2,7 @@
 // Rules: money is integer cents (*Cents, Int) in USD, never floats.
 // Tables and columns are snake_case in the database; camelCase in TypeScript.
 // Extra safety rules (CHECK constraints) live in the migration SQL; see prisma/migrations.
-// Order, account and admin tables are added in Steps 5, 6 and 7.
+// Account and admin tables are added in Steps 6 and 7.
 
 generator client {
   provider = "prisma-client"
@@ -70,8 +70,9 @@ model Product {
   createdAt           DateTime        @default(now()) @map("created_at")
   updatedAt           DateTime        @updatedAt @map("updated_at")
 
-  images   ProductImage[]
-  variants Variant[]
+  images     ProductImage[]
+  variants   Variant[]
+  orderItems OrderItem[]
 
   @@index([status, category])
   @@index([status, createdAt(sort: Desc)])
@@ -99,11 +100,123 @@ model Variant {
   size      String
   sku       String  @unique
   /// Pieces in stock. Empty (null) means made to order, so never sold out.
-  stock     Int?
-  position  Int     @default(0)
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stock      Int?
+  position   Int         @default(0)
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
 
   @@unique([productId, size])
   @@index([productId, position])
   @@map("variants")
+}
+
+// ─── Orders (Step 5) ────────────────────────────────────────────────────────
+
+/// Order lifecycle. Changes only through lib/order-status.ts (see the v1 spec, section 7).
+enum OrderStatus {
+  paid
+  confirmed
+  in_production
+  shipped
+  delivered
+  cancelled
+  refunded
+}
+
+/// The bag as priced by our server, saved while the shopper is on Stripe's payment page.
+/// The Stripe webhook turns it into an order. Deleted after 7 days by the cron job.
+model CheckoutDraft {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  /// Validated, server-priced lines (see lib/checkout.ts → DraftLine).
+  items           Json
+  subtotalCents   Int      @map("subtotal_cents")
+  stripeSessionId String?  @unique @map("stripe_session_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("checkout_drafts")
+}
+
+model Order {
+  id                    String      @id @default(uuid(7)) @db.Uuid
+  /// Shown to customers, e.g. VRS-1001. From a database sequence (see migration).
+  number                String      @unique @default(dbgenerated("('VRS-'::text || nextval('order_number_seq'::regclass))"))
+  status                OrderStatus @default(paid)
+  email                 String
+  phone                 String?
+  customerName          String      @map("customer_name")
+  /// { line1, line2, city, state, postalCode, country }
+  shippingAddress       Json        @map("shipping_address")
+  currency              String      @default("USD") @db.Char(3)
+  subtotalCents         Int         @map("subtotal_cents")
+  /// Promotion codes and store credit applied on Stripe's page.
+  discountCents         Int         @default(0) @map("discount_cents")
+  shippingCents         Int         @default(0) @map("shipping_cents")
+  /// What the customer paid: subtotal − discount + shipping (database rule).
+  totalCents            Int         @map("total_cents")
+  /// One order per Stripe Checkout Session: this is what makes the webhook safe to repeat.
+  stripeSessionId       String      @unique @map("stripe_session_id")
+  stripePaymentIntentId String?     @unique @map("stripe_payment_intent_id")
+  /// Secret for the order-status link in emails (Step 7).
+  accessToken           String      @unique @map("access_token")
+  courier               String?
+  trackingNumber        String?     @map("tracking_number")
+  confirmationSentAt    DateTime?   @map("confirmation_sent_at")
+  adminAlertSentAt      DateTime?   @map("admin_alert_sent_at")
+  paidAt                DateTime    @default(now()) @map("paid_at")
+  confirmedAt           DateTime?   @map("confirmed_at")
+  inProductionAt        DateTime?   @map("in_production_at")
+  shippedAt             DateTime?   @map("shipped_at")
+  deliveredAt           DateTime?   @map("delivered_at")
+  cancelledAt           DateTime?   @map("cancelled_at")
+  refundedAt            DateTime?   @map("refunded_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  items  OrderItem[]
+  events OrderEvent[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([email])
+  @@map("orders")
+}
+
+/// What was bought, copied at purchase time so later product edits never change past orders.
+model OrderItem {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  orderId          String   @map("order_id") @db.Uuid
+  productId        String?  @map("product_id") @db.Uuid
+  variantId        String?  @map("variant_id") @db.Uuid
+  titleSnapshot    String   @map("title_snapshot")
+  imageSnapshot    String?  @map("image_snapshot")
+  /// Size label at purchase, or null for custom fit.
+  size             String?
+  isCustom         Boolean  @default(false) @map("is_custom")
+  /// Custom-fit measurements copied at purchase (form arrives in Step 7).
+  measurements     Json?
+  unitPriceCents   Int      @map("unit_price_cents")
+  quantity         Int
+  productionDays   Int      @map("production_days")
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant          Variant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// Every status change and note, for the order timeline and the admin.
+model OrderEvent {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus? @map("to_status")
+  note       String?
+  /// "stripe", "system", or an admin user id (Step 6).
+  actor      String
+  createdAt  DateTime     @default(now()) @map("created_at")
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
 }

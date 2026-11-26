@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircleIcon } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/toast";
 import { track } from "@/lib/analytics";
+import { addToBag } from "@/lib/bag-store";
 import { cn } from "@/lib/cn";
 import { deliveryDayRange, deliveryWindow } from "@/lib/delivery";
 import type { Gender } from "@/lib/generated/prisma/enums";
@@ -19,6 +20,7 @@ export type PurchaseSize = { id: string; size: string; stock: number | null };
 
 type Props = {
   slug: string;
+  title: string;
   gender: Gender;
   priceCents: number;
   sizes: PurchaseSize[];
@@ -34,7 +36,15 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
 });
 
 /** Size choice (or custom fit), delivery estimate and the add-to-bag button. */
-export function PurchasePanel({ slug, gender, priceCents, sizes, readyDays, customFit }: Props) {
+export function PurchasePanel({
+  slug,
+  title,
+  gender,
+  priceCents,
+  sizes,
+  readyDays,
+  customFit,
+}: Props) {
   const [choice, setChoice] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
   const firstOptionRef = useRef<HTMLInputElement>(null);
@@ -48,19 +58,35 @@ export function PurchasePanel({ slug, gender, priceCents, sizes, readyDays, cust
   const estimate = today ? deliveryWindow(today, productionDays) : null;
   const ready = choice !== null;
 
-  function addToBag() {
+  function handleAddToBag() {
     if (!ready) {
       setShowError(true);
       firstOptionRef.current?.focus();
       return;
     }
+    const sizeLabel = isCustom
+      ? en.bag.customFit
+      : (sizes.find((s) => s.id === choice)?.size ?? "");
+    const added = addToBag({
+      productSlug: slug,
+      variantId: isCustom ? null : choice,
+      custom: isCustom,
+    });
+    if (!added) {
+      toast({ title: en.bag.full, description: en.bag.fullText, tone: "error" });
+      return;
+    }
     track("add_to_cart", {
       slug,
-      choice: isCustom ? "custom" : (sizes.find((s) => s.id === choice)?.size ?? ""),
+      choice: isCustom ? "custom" : sizeLabel,
       price_cents: priceCents + (isCustom && customFit ? customFit.extraCents : 0),
     });
-    // The bag itself is built in Step 5; until then, say so honestly.
-    toast({ title: en.product.bagComingSoonTitle, description: en.product.bagComingSoonText });
+    toast({
+      title: en.bag.added,
+      description: en.bag.addedDetail(title, sizeLabel),
+      tone: "success",
+      action: { label: en.bag.viewBag, href: "/bag" },
+    });
   }
 
   const firstEnabled = sizes.findIndex((s) => s.stock !== 0);
@@ -167,7 +193,7 @@ export function PurchasePanel({ slug, gender, priceCents, sizes, readyDays, cust
         <Button
           size="lg"
           fullWidth
-          onClick={addToBag}
+          onClick={handleAddToBag}
           aria-disabled={!ready || undefined}
           aria-describedby={ready ? undefined : ids.hint}
         >

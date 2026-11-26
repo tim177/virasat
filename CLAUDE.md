@@ -76,6 +76,31 @@ SHOP PATTERNS (learned in Step 4)
 - Today's date in client components: useToday() (lib/use-today.ts), never new Date() during
   render, or prerendered pages show the build date.
 
+ORDER AND STRIPE PATTERNS (learned in Step 5)
+- The Stripe webhook is the only place orders are created: createOrderFromSession() in
+  lib/orders.ts. /api/checkout only saves a checkout_draft and opens the Stripe session;
+  /checkout/success only reads the order and polls with router.refresh().
+- Testable webhook logic lives in lib/stripe-webhook.ts (verifyStripeEvent, handleStripeEvent
+  with injected effects). The route stays thin. Integration tests sign events with
+  stripe.webhooks.generateTestHeaderString, so they never call Stripe.
+- Side effects run after the commit and after the reply via next/server `after()` (see
+  app/api/stripe/webhook/route.ts). Email helpers never throw; failures are retried by
+  /api/cron/emails, or noted on the order.
+- Cron routes check isCronRequest() (lib/cron-auth.ts, Bearer CRON_SECRET).
+- The bag lives in localStorage (lib/bag-store.ts, useSyncExternalStore). Use useHydrated()
+  so browser-only state doesn't flash as "empty" on first paint. Prices always come from
+  /api/bag/quote.
+- Emails: templates in emails/ (plain React + @react-email/render; @react-email/components is
+  deprecated). Without RESEND_API_KEY they're written to .outbox/.
+- E2e tests that check the database use pg (tests/e2e/helpers/db.ts), because Playwright
+  can't load the Prisma 7 client.
+- Stripe e2e (tests/e2e/purchase.spec.ts) runs locally only, with STRIPE_E2E=1. It uses the
+  Chrome channel and presses Enter on 3-D Secure "Complete" (clicks are flaky there).
+- SITE_URL must match the server's port, because Stripe redirects back to it.
+  playwright.config.ts sets it for E2E_PORT.
+- Locally, always run `pnpm stripe:listen [port]`, never plain `stripe listen`: the CLI may be
+  logged into another Stripe account, and the script passes the .env key.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

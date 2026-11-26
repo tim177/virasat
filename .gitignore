@@ -51,3 +51,6 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# emails written locally instead of sent (no RESEND_API_KEY)
+/.outbox/

@@ -24,5 +24,7 @@ export default defineConfig({
     url: `http://localhost:${port}/api/health`,
     reuseExistingServer: !isCI,
     timeout: 120_000,
+    // Stripe sends the customer back to SITE_URL after paying, so it must match this port.
+    env: { SITE_URL: `http://localhost:${port}` },
   },
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   createContext,
   useCallback,
@@ -19,7 +20,13 @@ import { AlertCircleIcon, CheckIcon, CloseIcon, InfoIcon } from "./icons";
 
 export type ToastTone = "info" | "success" | "error";
 
-type ToastInput = { title: string; description?: string; tone?: ToastTone };
+type ToastInput = {
+  title: string;
+  description?: string;
+  tone?: ToastTone;
+  /** Optional link, e.g. "View bag". */
+  action?: { label: string; href: string };
+};
 type ToastItem = ToastInput & { id: number; tone: ToastTone };
 
 const ToastContext = createContext<((toast: ToastInput) => void) | null>(null);
@@ -105,6 +112,15 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
         <p className="font-medium">{toast.title}</p>
         {toast.description ? (
           <p className="text-body-sm text-stone-700">{toast.description}</p>
+        ) : null}
+        {toast.action ? (
+          <Link
+            href={toast.action.href}
+            onClick={onDismiss}
+            className="mt-1 inline-flex min-h-11 items-center font-medium text-crimson-700 underline underline-offset-4 hover:text-crimson-800"
+          >
+            {toast.action.label}
+          </Link>
         ) : null}
       </div>
       <IconButton label={en.ui.dismissNotification} onClick={onDismiss}>

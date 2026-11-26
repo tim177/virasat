@@ -1,7 +1,8 @@
 import Link from "next/link";
 
+import { BagLink } from "@/components/bag/bag-link";
 import { IconLink } from "@/components/ui/icon-button";
-import { BagIcon, SearchIcon, UserIcon } from "@/components/ui/icons";
+import { SearchIcon, UserIcon } from "@/components/ui/icons";
 import { en } from "@/lib/i18n/en";
 import { shopCategories } from "@/lib/site";
 
@@ -50,10 +51,7 @@ export function SiteHeader() {
             <IconLink href="/account" label={en.nav.account} className="hidden sm:inline-flex">
               <UserIcon />
             </IconLink>
-            {/* The bag count arrives with the bag in Step 5. */}
-            <IconLink href="/bag" label={en.nav.bag}>
-              <BagIcon />
-            </IconLink>
+            <BagLink />
           </div>
         </div>
       </div>

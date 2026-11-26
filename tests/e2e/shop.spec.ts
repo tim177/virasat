@@ -71,7 +71,8 @@ test("browse from home to a product and choose a size", async ({ page }) => {
 
   await expect(addToBag).not.toHaveAttribute("aria-disabled");
   await addToBag.click();
-  await expect(page.getByRole("status").filter({ hasText: "Almost ready" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Added to bag" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bag, 1 item" })).toBeVisible();
 });
 
 test("filters and sorting update the URL and the results", async ({ page }, testInfo) => {

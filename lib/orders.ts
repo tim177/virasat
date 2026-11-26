@@ -1,0 +1,279 @@
+import "server-only";
+
+import { randomBytes } from "node:crypto";
+
+import type Stripe from "stripe";
+import { z } from "zod";
+
+import { getDb } from "@/lib/db";
+import { draftLinesSchema } from "@/lib/draft-schema";
+import { Prisma, type OrderStatus } from "@/lib/generated/prisma/client";
+import { formatCents } from "@/lib/money";
+import { canTransition, InvalidTransitionError, statusTimestampField } from "@/lib/order-status";
+
+// Order writes. Orders are only ever created here, from a paid Stripe Checkout Session, and
+// statuses only change through transitionOrder (CLAUDE.md rules 2 and 3).
+
+export type OrderResult =
+  | { status: "created"; orderId: string; number: string }
+  | { status: "exists"; orderId: string; number: string }
+  | { status: "skipped"; reason: string };
+
+const shippingAddressSchema = z.object({
+  line1: z.string().min(1),
+  line2: z.string().nullable(),
+  city: z.string().min(1),
+  state: z.string().nullable(),
+  postalCode: z.string().min(1),
+  country: z.string().length(2),
+});
+
+/**
+ * What the customer paid, in US cents. Stripe's figures satisfy
+ * total = subtotal − discount + shipping (also a database rule).
+ */
+export function usdAmounts(
+  session: Pick<
+    Stripe.Checkout.Session,
+    "currency" | "amount_subtotal" | "amount_total" | "total_details" | "currency_conversion"
+  >,
+) {
+  if (session.currency === "usd") {
+    const subtotalCents = session.amount_subtotal ?? 0;
+    const discountCents = session.total_details?.amount_discount ?? 0;
+    const shippingCents = session.total_details?.amount_shipping ?? 0;
+    const totalCents = session.amount_total ?? subtotalCents - discountCents + shippingCents;
+    return { subtotalCents, discountCents, shippingCents, totalCents, notes: [] as string[] };
+  }
+  const conversion = session.currency_conversion;
+  if (conversion?.source_currency === "usd") {
+    return {
+      subtotalCents: conversion.amount_subtotal,
+      discountCents: conversion.amount_subtotal - conversion.amount_total,
+      shippingCents: 0,
+      totalCents: conversion.amount_total,
+      notes: [
+        `The customer paid in ${session.currency?.toUpperCase()}; amounts here are the US-dollar prices.`,
+      ],
+    };
+  }
+  throw new Error(`Unexpected payment currency "${session.currency}" with no US-dollar amounts`);
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+/**
+ * Creates the order for a paid Checkout Session, exactly once.
+ * Safe to call again for the same session (Stripe retries webhooks): returns "exists".
+ */
+export async function createOrderFromSession(
+  session: Stripe.Checkout.Session,
+): Promise<OrderResult> {
+  if (session.payment_status !== "paid") {
+    return { status: "skipped", reason: `payment_status is ${session.payment_status}` };
+  }
+
+  const db = getDb();
+  const existing = await db.order.findUnique({
+    where: { stripeSessionId: session.id },
+    select: { id: true, number: true },
+  });
+  if (existing) return { status: "exists", orderId: existing.id, number: existing.number };
+
+  const draftId = z.uuid().safeParse(session.metadata?.draft_id);
+  if (!draftId.success) return { status: "skipped", reason: "session has no valid draft_id" };
+  const draft = await db.checkoutDraft.findUnique({ where: { id: draftId.data } });
+  if (!draft) return { status: "skipped", reason: `draft ${draftId.data} not found` };
+
+  const lines = draftLinesSchema.parse(draft.items);
+  const customer = session.customer_details;
+  const shipping = session.collected_information?.shipping_details;
+  if (!customer?.email || !shipping) {
+    throw new Error(`Session ${session.id} is missing the email or shipping address`);
+  }
+  const address = shippingAddressSchema.parse({
+    line1: shipping.address.line1,
+    line2: shipping.address.line2 ?? null,
+    city: shipping.address.city,
+    state: shipping.address.state ?? null,
+    postalCode: shipping.address.postal_code,
+    country: shipping.address.country,
+  });
+
+  // Orders are always recorded in US dollars. We switch off Stripe's local-currency pricing,
+  // but if a payment ever arrives in another currency, use Stripe's US-dollar source amounts.
+  const amounts = usdAmounts(session);
+  const { subtotalCents, discountCents, shippingCents, totalCents } = amounts;
+  const notes: string[] = [...amounts.notes];
+  if (subtotalCents !== draft.subtotalCents) {
+    notes.push(
+      `Check this order: the bag was ${formatCents(draft.subtotalCents)} but Stripe charged a subtotal of ${formatCents(subtotalCents)}.`,
+    );
+  }
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+
+  try {
+    const order = await db.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          email: customer.email as string,
+          phone: customer.phone ?? null,
+          customerName: shipping.name || customer.name || "Customer",
+          shippingAddress: address,
+          subtotalCents,
+          discountCents,
+          shippingCents,
+          totalCents,
+          stripeSessionId: session.id,
+          stripePaymentIntentId: paymentIntentId,
+          accessToken: randomBytes(24).toString("base64url"),
+          items: {
+            create: lines.map((line) => ({
+              productId: line.productId,
+              variantId: line.variantId,
+              titleSnapshot: line.title,
+              imageSnapshot: line.imageUrl,
+              size: line.size,
+              isCustom: line.isCustom,
+              measurements: line.measurements
+                ? (line.measurements as Prisma.InputJsonObject)
+                : Prisma.JsonNull,
+              unitPriceCents: line.unitPriceCents,
+              quantity: line.quantity,
+              productionDays: line.productionDays,
+            })),
+          },
+          events: {
+            create: { toStatus: "paid", actor: "stripe", note: `Paid ${formatCents(totalCents)}` },
+          },
+        },
+        select: { id: true, number: true },
+      });
+
+      // Reduce stock atomically. If someone bought the last piece a moment earlier, the payment
+      // has still been taken: keep the order, set stock to 0 and flag it for a refund.
+      const oversold: string[] = [];
+      for (const line of lines) {
+        if (!line.variantId) continue;
+        const updated = await tx.$executeRaw`
+          UPDATE variants SET stock = stock - ${line.quantity}
+          WHERE id = ${line.variantId}::uuid AND stock IS NOT NULL AND stock >= ${line.quantity}`;
+        if (updated === 0) {
+          const variant = await tx.variant.findUnique({
+            where: { id: line.variantId },
+            select: { stock: true },
+          });
+          if (variant && variant.stock !== null) {
+            await tx.variant.update({ where: { id: line.variantId }, data: { stock: 0 } });
+            oversold.push(`${line.title} (${line.size}) × ${line.quantity}`);
+          }
+        }
+      }
+      if (oversold.length > 0) {
+        notes.push(
+          `Oversold, not enough stock: ${oversold.join("; ")}. Refund or offer a replacement.`,
+        );
+      }
+      if (notes.length > 0) {
+        await tx.orderEvent.createMany({
+          data: notes.map((note) => ({ orderId: created.id, actor: "system", note })),
+        });
+      }
+      return created;
+    });
+    return { status: "created", orderId: order.id, number: order.number };
+  } catch (error) {
+    // Two deliveries of the same event at the same moment: the database let only one through.
+    if (isUniqueViolation(error)) {
+      const winner = await db.order.findUnique({
+        where: { stripeSessionId: session.id },
+        select: { id: true, number: true },
+      });
+      if (winner) return { status: "exists", orderId: winner.id, number: winner.number };
+    }
+    throw error;
+  }
+}
+
+/** Moves an order to a new status if the rules allow it, and records the change. */
+export async function transitionOrder(
+  orderId: string,
+  to: OrderStatus,
+  actor: string,
+  note?: string,
+): Promise<void> {
+  await getDb().$transaction(async (tx) => {
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: { status: true, items: { select: { isCustom: true } } },
+    });
+    const hasCustomItems = order.items.some((item) => item.isCustom);
+    if (!canTransition(order.status, to, { hasCustomItems })) {
+      throw new InvalidTransitionError(order.status, to);
+    }
+    // Matching on the old status stops two simultaneous changes from both succeeding.
+    await tx.order.update({
+      where: { id: orderId, status: order.status },
+      data: { status: to, [statusTimestampField[to]]: new Date() },
+    });
+    await tx.orderEvent.create({
+      data: { orderId, fromStatus: order.status, toStatus: to, actor, note: note ?? null },
+    });
+  });
+}
+
+export type RefundResult =
+  | { status: "refunded"; orderId: string; amountCents: number }
+  | { status: "partial"; orderId: string; amountCents: number }
+  | { status: "skipped"; reason: string };
+
+/** Applies a refund made in Stripe's dashboard to the matching order. Safe to repeat. */
+export async function applyChargeRefund(
+  charge: Stripe.Charge,
+  eventId: string,
+): Promise<RefundResult> {
+  const paymentIntentId =
+    typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+  if (!paymentIntentId) return { status: "skipped", reason: "charge has no payment intent" };
+
+  const db = getDb();
+  const order = await db.order.findUnique({
+    where: { stripePaymentIntentId: paymentIntentId },
+    select: { id: true, status: true },
+  });
+  if (!order) return { status: "skipped", reason: `no order for ${paymentIntentId}` };
+
+  if (charge.refunded) {
+    if (order.status === "refunded") return { status: "skipped", reason: "already refunded" };
+    await transitionOrder(
+      order.id,
+      "refunded",
+      "stripe",
+      `Refunded ${formatCents(charge.amount_refunded)} in Stripe`,
+    );
+    return { status: "refunded", orderId: order.id, amountCents: charge.amount_refunded };
+  }
+
+  // Partial refund (e.g. an alteration payment): a note only. The event id stops duplicates.
+  const marker = `[${eventId}]`;
+  const seen = await db.orderEvent.findFirst({
+    where: { orderId: order.id, note: { contains: marker } },
+    select: { id: true },
+  });
+  if (!seen) {
+    await db.orderEvent.create({
+      data: {
+        orderId: order.id,
+        actor: "stripe",
+        note: `Partial refund in Stripe: ${formatCents(charge.amount_refunded)} refunded so far ${marker}`,
+      },
+    });
+  }
+  return { status: "partial", orderId: order.id, amountCents: charge.amount_refunded };
+}

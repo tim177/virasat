@@ -383,6 +383,19 @@ This is the most important step. Take it slowly and test it well.
 - Unit tests pass for price calculation and the order status rules.
 - Locally, webhooks arrive through `stripe listen`.
 
+**Notes from building Step 5:**
+- **No bag drawer.** "Add to bag" shows a toast with a "View bag" link, and the header shows the item count. The `/bag` page does the rest. A drawer would add client JavaScript to every product page for little gain.
+- **Custom-fit lines have no measurements until Step 7.** The measurement form and "Edit measurements" arrive with it. Until then, drafts and orders store `measurements: null`, and the confirmation says we'll book a fit call.
+- **Adaptive Pricing is off** (`adaptive_pricing: { enabled: false }`), so customers always pay the all-inclusive USD price. If a payment ever arrives in another currency anyway, the order records Stripe's USD amounts and adds a note.
+- **Payment methods are chosen in the Stripe dashboard**, not in code. Turn off "Bank" (ACH) there. The webhook also handles `checkout.session.async_payment_succeeded`, so a delayed method can't lose an order if one is ever switched on.
+- **Emails built now:** order confirmation, new-order alert to you, and full refund. **Shipped, delivered and cancelled emails come with the admin in Step 6**, because the admin's status buttons send them. The order-status link and the Cal.com link in the confirmation come in Step 7.
+- **Failed emails:** the hourly cron (`/api/cron/emails`) retries confirmations and admin alerts. A failed refund email is not retried. It is recorded as an order note ("Email the customer"), because the refund itself has already happened.
+- **Checkout drafts** are deleted after 7 days by a daily cron (`/api/cron/drafts`). Stripe sessions expire within 24 hours, so a week leaves room for late webhook retries.
+- **`purchase` analytics is sent from the order-confirmed page** (once per order), not from the server. Sending it from the server needs PostHog's Node SDK, which can come later if ad blockers hide too many purchases.
+- **Stripe e2e runs locally only.** It needs real test keys and `pnpm stripe:listen` (see README). CI runs the bag tests and the webhook integration tests, with fake keys and signed test events.
+- **Email templates** use plain React + `@react-email/render`, because `@react-email/components` is deprecated.
+- **Still to do outside the code:** SPF/DKIM/DMARC (with the Resend account and domain), and turning on Stripe email receipts in the dashboard.
+
 ### Step 6: Admin + first deploy · ~5–6 days
 
 **Admin:**
@@ -488,9 +501,9 @@ Work through the launch checklist (section 10). Switch Stripe to **live mode**. 
 8. **Deploy script:** `git pull` → `docker compose build` → `prisma migrate deploy` → `docker compose up -d`.
 9. **Stripe webhook** pointed at `https://www.<domain>/api/stripe/webhook`.
 10. **Scheduled jobs** (Linux cron on the server, calling protected `/api/cron/*` routes with a secret header):
-    - Every hour: resend failed emails.
+    - Every hour: resend failed emails (`/api/cron/emails`).
     - Daily: fit-call reminders.
-    - Daily: delete checkout drafts older than 7 days.
+    - Daily: delete checkout drafts older than 7 days (`/api/cron/drafts`).
 11. **Backups:**
     - Nightly `pg_dump` → a Google Cloud Storage bucket, kept for 30 days.
     - Weekly disk snapshot.

@@ -44,5 +44,34 @@ All design-system components are previewed at **http://localhost:3000/dev/compon
 | `pnpm db:deploy`              | Apply existing migrations (CI and server)                                       |
 | `pnpm db:seed`                | Add or refresh the sample products (refuses non-local databases)                |
 | `pnpm db:studio`              | Browse the database in the browser                                              |
+| `pnpm stripe:listen [port]`   | Forward Stripe test webhooks to `localhost:[port]` (default 3000)               |
+
+## Payments and emails locally
+
+**Stripe (test mode).** Put a test secret key (`sk_test_...`) in `.env` as `STRIPE_SECRET_KEY`. Then:
+
+```bash
+pnpm stripe:listen        # needs the Stripe CLI; prints a whsec_... secret
+```
+
+Copy the printed `whsec_...` value into `.env` as `STRIPE_WEBHOOK_SECRET` (once; it stays the same) and restart the app. `pnpm stripe:listen` passes the key from `.env`, so webhooks come from the same Stripe account as the app, whichever account the Stripe CLI is logged into. Pay with Stripe's test cards, for example `4242 4242 4242 4242` or `4000 0027 6000 3184` (3-D Secure).
+
+Orders are created only by the webhook. If `stripe:listen` isn't running, the "Order confirmed" page waits on "Confirming your payment…".
+
+**Emails.** Without `RESEND_API_KEY`, emails are saved as HTML files in **`.outbox/`** (git-ignored) instead of being sent. Open them in a browser to check them. A production build (`pnpm start`) also needs `EMAIL_OUTBOX=true` for this; otherwise a missing key is an error, so the live shop never drops emails silently.
+
+**Scheduled jobs** are `POST /api/cron/emails` (hourly: resend failed emails) and `POST /api/cron/drafts` (daily: delete old checkout drafts). Both need `Authorization: Bearer $CRON_SECRET`.
+
+**The real purchase test** (`tests/e2e/purchase.spec.ts`) pays on Stripe's test page with a normal card and a 3-D Secure card. It's skipped in CI and needs Google Chrome installed:
+
+```bash
+# terminal 1
+pnpm stripe:listen 3300
+# terminal 2
+pnpm build
+STRIPE_E2E=1 CI=1 E2E_PORT=3300 pnpm exec playwright test tests/e2e/purchase.spec.ts --project=desktop
+```
+
+The test deletes its orders afterwards. `SITE_URL` must match the server's port (Playwright sets it), because Stripe sends the customer back there after paying.
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, format check, unit tests, migrations, seed, integration tests, build and browser tests on every push and pull request.

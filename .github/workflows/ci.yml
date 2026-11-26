@@ -39,6 +39,12 @@ jobs:
       # Lets the production build serve /dev/components so the accessibility tests can run.
       # Never set this on the live server.
       ENABLE_DEV_PAGES: "true"
+      # CI never talks to Stripe: these only let webhook tests create and check signatures.
+      STRIPE_SECRET_KEY: sk_test_ci_not_a_real_key
+      STRIPE_WEBHOOK_SECRET: whsec_ci_test_only
+      # Emails are written to .outbox/ instead of being sent.
+      EMAIL_OUTBOX: "true"
+      CRON_SECRET: ci-cron-secret
 
     steps:
       - uses: actions/checkout@v5

@@ -124,6 +124,7 @@ export default async function ProductPage({ params }: PageProps<"/p/[slug]">) {
 
             <PurchasePanel
               slug={product.slug}
+              title={product.title}
               gender={product.gender}
               priceCents={product.priceCents}
               sizes={product.variants.map((v) => ({ id: v.id, size: v.size, stock: v.stock }))}

@@ -3,7 +3,13 @@
 // even part of the page's JavaScript. Call only from the browser.
 
 export type AnalyticsEvent =
-  "view_item_list" | "view_item" | "search" | "search_no_results" | "add_to_cart";
+  | "view_item_list"
+  | "view_item"
+  | "search"
+  | "search_no_results"
+  | "add_to_cart"
+  | "begin_checkout"
+  | "purchase";
 
 export type AnalyticsProperties = Record<string, string | number | boolean | string[] | null>;
 
