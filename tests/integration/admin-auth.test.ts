@@ -96,6 +96,20 @@ describe("pnpm admin:create", () => {
     expect(customer.role).toBe("customer");
   });
 
+  it("can use a chosen password (the local dev admin from .env)", async () => {
+    const creds = await createAdmin({
+      email: newEmail("chosen"),
+      name: "Dev Admin",
+      password: "a-chosen-dev-password",
+    });
+    expect(creds.password).toBe("a-chosen-dev-password");
+    const { response } = await signInWithPassword(creds.email, "a-chosen-dev-password");
+    expect(response).toMatchObject({ twoFactorRedirect: true });
+    await expect(
+      createAdmin({ email: newEmail("short"), name: "Dev Admin", password: "short" }),
+    ).rejects.toThrow(ZodError);
+  });
+
   it("rejects bad input", async () => {
     await expect(createAdmin({ email: "not-an-email", name: "X" })).rejects.toThrow(ZodError);
     await expect(createAdmin({ email: newEmail("noname"), name: "   " })).rejects.toThrow(ZodError);

@@ -27,6 +27,8 @@
     "db:studio": "prisma studio",
     "stripe:listen": "node scripts/stripe-listen.mjs",
     "admin:create": "node --conditions=react-server --import tsx scripts/create-admin.ts",
+    "admin:dev": "node --conditions=react-server --import tsx scripts/dev-admin.ts",
+    "admin:code": "node --import tsx scripts/admin-code.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "@prisma/client": "7.10.1",
     "@react-email/render": "2.3.1",
     "@sentry/nextjs": "11.13.0",
+    "aws4fetch": "1.0.20",
     "better-auth": "1.7.26",
     "next": "16.4.6",
     "posthog-js": "1.450.0",

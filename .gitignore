@@ -54,3 +54,6 @@ next-env.d.ts
 
 # emails written locally instead of sent (no RESEND_API_KEY)
 /.outbox/
+
+# product photos uploaded locally when R2 is not set up (lib/storage.ts)
+/uploads/

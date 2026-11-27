@@ -15,7 +15,7 @@ import { getDb } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { toProductCard } from "@/lib/product-cards";
 import { parseSearchQuery } from "@/lib/search-terms";
-import { seedProducts } from "@/prisma/seed-data";
+import { seedImages, seedProducts } from "@/prisma/seed-data";
 
 // Needs the local database migrated and seeded: pnpm db:up && pnpm db:deploy && pnpm db:seed
 
@@ -72,8 +72,11 @@ describe("seeded catalogue", () => {
 
   it("maps each product's first photo for the product card", async () => {
     const [first] = await getNewestProducts(1);
+    const seeded = seedProducts.find((product) => `/p/${product.slug}` === first.href)!;
+    // The card shows the full-outfit photo (the first one), not the close-up.
+    const [front] = seedImages(seeded);
+    expect(first.image).toEqual({ src: front.url, alt: front.alt });
     expect(first.image?.src).toMatch(/^\/seed\/.+-1\.webp$/);
-    expect(first.image?.alt).toMatch(/front view$/);
   });
 });
 

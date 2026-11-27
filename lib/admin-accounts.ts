@@ -15,6 +15,12 @@ export const adminInputSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address")),
   name: z.string().trim().min(1, "Enter a name").max(80),
   reset: z.boolean().default(false),
+  /** Leave out for a random password (the normal case). Set for the local dev admin. */
+  password: z
+    .string()
+    .min(12, "The password needs at least 12 characters")
+    .max(128, "The password can have at most 128 characters")
+    .optional(),
 });
 
 export type AdminInput = z.input<typeof adminInputSchema>;
@@ -44,7 +50,7 @@ function cookieHeader(headers: Headers): string {
 }
 
 /**
- * Creates an admin with a new random password and authenticator secret, with two-factor
+ * Creates an admin with a new password (random unless given) and authenticator secret, with two-factor
  * sign-in already on. With `reset`, replaces an existing admin's password, authenticator
  * and backup codes, and signs them out everywhere.
  */
@@ -62,7 +68,7 @@ export async function createAdmin(rawInput: AdminInput): Promise<NewAdminCredent
     throw new AdminAccountError(`${input.email} is a customer account, not an admin.`);
   }
 
-  const password = randomBytes(18).toString("base64url");
+  const password = input.password ?? randomBytes(18).toString("base64url");
   const passwordHash = await ctx.password.hash(password);
 
   const userId = await db.$transaction(async (tx) => {

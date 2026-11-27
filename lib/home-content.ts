@@ -4,10 +4,11 @@ import type { Occasion } from "@/lib/generated/prisma/enums";
 // Edit this file to change the hero photo or the occasions shown. No CMS in v1.
 
 export const homeHero = {
-  // Sample artwork until the photoshoot; replace with a real hero photo (3:4 portrait).
+  // A sample stock photo until the photoshoot (public/seed/CREDITS.md); replace with a real
+  // hero photo (3:4 portrait).
   image: {
     src: "/seed/crimson-silk-bridal-lehenga-1.webp",
-    alt: "Sample artwork of a crimson bridal lehenga in an arched frame",
+    alt: "Bride wearing a crimson bridal lehenga with gold embroidery",
   },
   primaryHref: "/c/lehengas",
   secondaryHref: "#custom-fit",

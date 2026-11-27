@@ -435,6 +435,11 @@ This is the most important step. Take it slowly and test it well.
 - A page left open in another tab can't move an order twice: each action checks the status the admin saw.
 - `admin_log` is written in the same transaction as each change. Admins with log entries can't be deleted, so the history stays complete. Admin dates are shown in India time (IST).
 - Status changes and internal notes are both `order_events` rows. The customer's order page (Step 7) will show only the status changes, never the notes.
+- **Products (6c):** `/admin/products` lists every product with photo, price, stock and status (tabs and a name search). The editor covers every field, sizes with stock (empty = made to order; "Add standard sizes" fills the size-guide labels; SKUs are generated if empty), photos with required alt text (reorder with Move up/down buttons, so it works by keyboard), and Draft/Published. Saving refreshes the shop and writes `admin_log` with before and after.
+- **Publishing needs** at least one photo, a size or custom fit, and the HS code (from the customs broker). Drafts can be saved without them.
+- **Photo upload goes through our server** (`POST /api/admin/uploads`), not straight to R2 as first planned. One code path, and the server checks every file really is a JPEG, PNG, WebP or AVIF of at most 8 MB before storing it under a random name. With the R2 keys set, photos go to R2 and are served from `IMAGES_BASE_URL`. Without them, they go to a local `uploads/` folder served at `/uploads/...` (local development, CI, or a server before R2 exists). Photos removed from a product stay in storage; that's harmless at this size.
+- **Local dev admin:** `pnpm admin:dev` creates `admin@virasat.local` from `.env` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`) and saves its authenticator secret there. `pnpm admin:code` prints the current code. Two-step sign-in stays on everywhere; this only makes it easy on a laptop, and it refuses non-local databases.
+- **Sample photos** in `public/seed` are now free Unsplash photos of similar garments, cropped to 3:4, each with a close-up crop as the second photo (credits: `public/seed/CREDITS.md`). They're for development and demos only. Launch needs photos of the real pieces.
 
 ### Step 7: Accounts, custom fit and order status · ~5 days
 1. **Login** (`/login`):

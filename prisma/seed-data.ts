@@ -5,8 +5,8 @@ import type {
   ProductStatus,
 } from "../lib/generated/prisma/enums";
 
-// Sample catalogue for development and tests. Photos are generated artwork in /public/seed,
-// not real product photos. Prices are all-inclusive USD in cents (duties + shipping included).
+// Sample catalogue for development and tests. Photos in /public/seed are free stock photos of
+// similar garments (credits: public/seed/CREDITS.md), not Virasat's own pieces. Prices are all-inclusive USD in cents (duties + shipping included).
 // hsCode is left empty: real codes come from the customs broker (plan Step 0).
 
 export type SeedProduct = {
@@ -294,12 +294,72 @@ export const seedProducts: SeedProduct[] = [
   },
 ];
 
-/** Photos for a seed product: generated artwork, front view and fabric detail. */
+/** What each sample photo shows, for screen readers: [full outfit, close-up]. */
+const photoAlts: Record<string, [string, string]> = {
+  "crimson-silk-bridal-lehenga": [
+    "Bride wearing a crimson bridal lehenga with gold embroidery and a matching dupatta",
+    "Close-up of the gold zardozi embroidery and bridal bangles on the crimson lehenga",
+  ],
+  "blush-organza-lehenga": [
+    "Model in a pink lehenga with a sheer dupatta, standing in a doorway",
+    "Close-up of the gold embroidered motifs on the pink lehenga skirt",
+  ],
+  "emerald-velvet-lehenga": [
+    "Model in an emerald green lehenga, holding its light green woven dupatta",
+    "Close-up of the gold floral weave on the emerald lehenga skirt",
+  ],
+  "marigold-cotton-silk-lehenga": [
+    "Model in a marigold yellow lehenga with a white blouse and a peach dupatta",
+    "Close-up of the flowing marigold yellow lehenga skirt",
+  ],
+  "ruby-banarasi-silk-saree": [
+    "Woman in a ruby Banarasi silk saree with a wide gold-woven border",
+    "Close-up of the woven motifs and gold border on the ruby saree",
+  ],
+  "ivory-chikankari-georgette-saree": [
+    "Woman in a pale georgette saree with small embroidered motifs and a black blouse",
+    "Close-up of the embroidered motifs on the georgette saree",
+  ],
+  "emerald-georgette-anarkali": [
+    "Model in a green and gold anarkali with a matching woven dupatta",
+    "Close-up of the embroidered neckline and woven dupatta of the green anarkali",
+  ],
+  "midnight-blue-velvet-anarkali": [
+    "Woman in a deep blue anarkali with an embroidered neckline, seated on a step",
+    "Close-up of the floral embroidery on the neckline of the blue anarkali",
+  ],
+  "ivory-raw-silk-sherwani": [
+    "Ivory embroidered sherwani on a stand, with a pearl necklace, red stole and turban",
+    "Close-up of the tone-on-tone embroidery and pearl necklace on the ivory sherwani",
+  ],
+  "maroon-jacquard-sherwani": [
+    "Groom in a maroon and gold jacquard sherwani with a red stole, seen from behind",
+    "Close-up of the gold jacquard weave and red stole of the maroon sherwani",
+  ],
+  "sage-linen-kurta-set": [
+    "Man in a long sage green kurta set, front view",
+    "Close-up of the collar and button placket of the sage kurta",
+  ],
+  "rose-silk-kurta-set": [
+    "Model in a rose pink printed kurta set with matching trousers",
+    "Close-up of the rose floral print on the kurta",
+  ],
+  "gold-tissue-lehenga": [
+    "Model in a gold and red lehenga in a palace courtyard",
+    "Close-up of the gold and red panels of the lehenga skirt",
+  ],
+};
+
+/** Photos for a seed product: the full outfit, then a close-up. */
 export function seedImages(product: SeedProduct) {
   const name = product.title.toLowerCase();
+  const [front, detail] = photoAlts[product.slug] ?? [
+    `The ${name}, front view`,
+    `The ${name}, detail`,
+  ];
   return [
-    { url: `/seed/${product.slug}-1.webp`, alt: `Sample artwork of the ${name}, front view` },
-    { url: `/seed/${product.slug}-2.webp`, alt: `Sample artwork of the ${name}, fabric detail` },
+    { url: `/seed/${product.slug}-1.webp`, alt: front },
+    { url: `/seed/${product.slug}-2.webp`, alt: detail },
   ];
 }
 

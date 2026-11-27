@@ -4,6 +4,7 @@ import {
   useId,
   type InputHTMLAttributes,
   type ReactNode,
+  type Ref,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
@@ -76,7 +77,8 @@ function FieldShell({
   );
 }
 
-type InputProps = FieldBaseProps & InputHTMLAttributes<HTMLInputElement>;
+type InputProps = FieldBaseProps &
+  InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> };
 
 export function Input({ label, help, error, optional, id, className, ...rest }: InputProps) {
   const ids = useFieldIds(id);

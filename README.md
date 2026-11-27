@@ -46,10 +46,23 @@ All design-system components are previewed at **http://localhost:3000/dev/compon
 | `pnpm db:studio`              | Browse the database in the browser                                              |
 | `pnpm stripe:listen [port]`   | Forward Stripe test webhooks to `localhost:[port]` (default 3000)               |
 | `pnpm admin:create ...`       | Create an admin login, or reset one (see "Admin" below)                         |
+| `pnpm admin:dev`              | Create the local dev admin from `.env` (see "Admin" below)                      |
+| `pnpm admin:code`             | Print the local dev admin's current sign-in code                                |
 
 ## Admin
 
-The admin is at **/admin**. There is no sign-up page: admins are created from the command line, with two-step sign-in already turned on.
+The admin is at **/admin**: orders (paid → delivered), products (with photo upload) and more. There is no sign-up page: admins are created from the command line, with two-step sign-in already turned on.
+
+**Locally, the quick way:**
+
+```bash
+pnpm admin:dev     # creates admin@virasat.local; saves its password and authenticator secret in .env
+pnpm admin:code    # prints the current 6-digit sign-in code
+```
+
+Sign in at http://localhost:3000/admin/login with `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, then the code from `pnpm admin:code`. Change `ADMIN_EMAIL` or `ADMIN_PASSWORD` in `.env` and run `pnpm admin:dev` again to update it. This only works with a local database. Never put these values on a server.
+
+**On a server (or with a real authenticator app):**
 
 ```bash
 pnpm admin:create --email you@example.com --name "Your Name"
@@ -60,6 +73,8 @@ It prints a random password, a QR code for an authenticator app (Google Authenti
 Lost the password or the phone? Run the same command with `--reset`: it replaces the password, the authenticator and the backup codes, and signs that admin out everywhere.
 
 `BETTER_AUTH_SECRET` must be set in `.env` (see `.env.example`), and sign-in only works on the address in `SITE_URL`.
+
+**Product photos.** Uploads in the product editor are checked (JPEG, PNG, WebP or AVIF, up to 8 MB) and saved to Cloudflare R2 when the five R2 values in `.env` are set (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `IMAGES_BASE_URL`). Without them, they're saved in the git-ignored `uploads/` folder and served at `/uploads/...`. The sample photos in `public/seed` are free stock photos for development only (credits in `public/seed/CREDITS.md`). Replace them with photos of the real pieces before launch.
 
 ## Payments and emails locally
 

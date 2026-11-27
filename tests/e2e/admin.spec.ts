@@ -2,12 +2,18 @@ import { randomUUID } from "node:crypto";
 import { readdir } from "node:fs/promises";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 import { totpCode } from "../../lib/totp";
 
 import { createTestAdmin, type TestAdmin } from "./helpers/admin";
-import { closeDb, deleteOrdersMatching, deleteUsersMatching, insertTestOrder } from "./helpers/db";
+import {
+  closeDb,
+  deleteOrdersMatching,
+  deleteProductsMatching,
+  deleteUsersMatching,
+  insertTestOrder,
+} from "./helpers/db";
 
 // The admin: sign-in with a password and an authenticator code (CLAUDE.md rule 7), and
 // processing an order from paid to delivered (v1 spec, Step 6).
@@ -49,6 +55,7 @@ test.describe("an admin", () => {
 
   test.afterAll(async () => {
     await deleteOrdersMatching(runId);
+    await deleteProductsMatching(runId);
     await deleteUsersMatching(runId);
     await closeDb();
   });
@@ -58,6 +65,22 @@ test.describe("an admin", () => {
     await page.getByLabel("Email").fill(admin.email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Continue" }).click();
+  }
+
+  // Tests that only need to be signed in share one sign-in: signing in again for each test
+  // would trip the per-IP limit on two-step codes (3 tries per 10 seconds).
+  let session: Awaited<ReturnType<BrowserContext["storageState"]>> | undefined;
+  async function signedInPage(browser: Browser): Promise<Page> {
+    const baseURL = test.info().project.use.baseURL;
+    if (session) return (await browser.newContext({ baseURL, storageState: session })).newPage();
+    const context = await browser.newContext({ baseURL });
+    const page = await context.newPage();
+    await enterPassword(page, admin.password);
+    await page.getByLabel("Authentication code").fill(totpCode(admin.totpSecret));
+    await page.getByRole("button", { name: "Verify" }).click();
+    await signInExpect(page).toHaveURL(/\/admin$/);
+    session = await context.storageState();
+    return page;
   }
 
   test("signs in with password and authenticator code, then signs out", async ({ page }) => {
@@ -98,14 +121,12 @@ test.describe("an admin", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Welcome, E2E Admin" })).toBeVisible();
   });
 
-  test("processes an order from paid to delivered", async ({ page }) => {
+  test("processes an order from paid to delivered", async ({ browser }) => {
     const email = `e2e-order-${runId}@example.com`;
     const number = await insertTestOrder(email);
 
-    await enterPassword(page, admin.password);
-    await page.getByLabel("Authentication code").fill(totpCode(admin.totpSecret));
-    await page.getByRole("button", { name: "Verify" }).click();
-    await signInExpect(page).toHaveURL(/\/admin$/);
+    const page = await signedInPage(browser);
+    await page.goto("/admin");
 
     await page
       .getByRole("navigation", { name: "Admin" })
@@ -150,6 +171,69 @@ test.describe("an admin", () => {
     await expect(history).toContainText("Shipped → Delivered");
     await expect(history).toContainText("DHL Express JD014600006281");
     await expectNoWcagViolations(page);
+  });
+
+  test("adds a product with a photo and publishes it to the shop", async ({ browser }) => {
+    const title = `E2E silk saree ${runId}`;
+    const slug = `e2e-saree-${runId}`;
+    const alt = `Model wearing the E2E silk saree ${runId}`;
+
+    const page = await signedInPage(browser);
+    await page.goto("/admin");
+
+    await page
+      .getByRole("navigation", { name: "Admin" })
+      .getByRole("link", { name: "Products" })
+      .click();
+    await expect(page.getByRole("heading", { level: 1, name: "Products" })).toBeVisible();
+    await expectNoWcagViolations(page);
+    await page.getByRole("link", { name: "Add product" }).click();
+
+    // Saving too early lists the problems and keeps what was typed.
+    await page.getByLabel("Name", { exact: true }).fill(title);
+    await expect(page.getByLabel("Web address")).toHaveValue(`e2e-silk-saree-${runId}`);
+    await page.getByRole("button", { name: "Save product" }).click();
+    const problems = page.getByRole("alert").filter({ hasText: "need fixing before saving" });
+    await expect(problems).toBeFocused();
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue(title);
+
+    await page.getByLabel("Web address").fill(slug);
+    await page
+      .getByLabel("Description", { exact: true })
+      .fill("A ruby silk saree with a woven gold border, made for the browser tests.");
+    await page.getByLabel("Category").selectOption("saree");
+    await page.getByLabel("Fabric").fill("Silk");
+    await page.getByLabel("Work (embroidery or weave)").fill("Zari weave");
+    await page.getByLabel("Colour").fill("Red");
+    await page.getByLabel("HS code (customs)").fill("6204.44");
+    await page.getByLabel("Wedding").check();
+    await page.getByLabel("Care instructions").fill("Dry clean only.");
+    await page.getByLabel("Price (USD)", { exact: true }).fill("349");
+
+    await page.getByRole("button", { name: "Add size" }).click();
+    await page.getByRole("textbox", { name: /^Size/ }).fill("One size");
+    await page.getByRole("textbox", { name: /^Stock/ }).fill("3");
+
+    await page.getByLabel("Add photos").setInputFiles("tests/e2e/fixtures/product-photo.webp");
+    const altInput = page.getByLabel("Description for screen readers");
+    await expect(altInput).toBeFocused({ timeout: 15_000 });
+    await altInput.fill(alt);
+
+    await page.getByLabel("Published: on sale in the shop").check();
+    await page.getByRole("button", { name: "Save product" }).click();
+    await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]{36}\?created=1$/);
+    await expect(page.getByRole("status").filter({ hasText: "Product created." })).toBeVisible();
+    await expectNoWcagViolations(page);
+
+    // It's in the shop, with its uploaded photo.
+    await page.goto(`/p/${slug}`);
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    await expect(page.getByText("$349.00").first()).toBeVisible();
+    const photo = page.getByRole("img", { name: alt }).first();
+    await expect(photo).toBeVisible();
+    await expect
+      .poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBeGreaterThan(0);
   });
 });
 

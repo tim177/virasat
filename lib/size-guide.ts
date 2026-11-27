@@ -16,3 +16,10 @@ export const menSizeChart = [
   { size: "XL", chest: 42, waist: 36 },
   { size: "XXL", chest: 44, waist: 38 },
 ] as const;
+
+/** The size labels a new product starts with, matching the size guide: "M (US 8–10)". */
+export function standardSizeLabels(gender: "women" | "men"): string[] {
+  return gender === "women"
+    ? womenSizeChart.map((row) => `${row.size} (US ${row.us})`)
+    : menSizeChart.map((row) => `${row.size} (chest ${row.chest}")`);
+}

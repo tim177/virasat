@@ -129,6 +129,15 @@ ADMIN AND LOGIN PATTERNS (learned in Step 6)
   cron resends while orders.status_email_sent_for differs from status.
 - Admin dates use lib/admin-format.ts (India time). E2e test orders: insertTestOrder() in
   tests/e2e/helpers/db.ts.
+- Long admin forms (components/admin/product-form.tsx) dispatch the action from onSubmit with
+  startTransition, not `<form action>`: React resets a form after its action runs, which would
+  wipe what the admin typed when validation fails. Lists inside a form (sizes, photos) are
+  client state sent as JSON in hidden inputs and parsed by Zod (lib/admin-products-input.ts).
+- Product photos: POST /api/admin/uploads → saveProductPhoto() (lib/storage.ts) checks the
+  bytes (lib/image-file.ts) and stores to R2 or the local uploads/ folder (served by
+  app/uploads/[...path]). saveProduct() only accepts photo URLs under /seed/, /uploads/ or
+  IMAGES_BASE_URL.
+- Local admin: `pnpm admin:dev` + `pnpm admin:code` (scripts/dev-admin.ts, admin-code.ts).
 
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices

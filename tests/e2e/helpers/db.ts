@@ -1,6 +1,8 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 
 import pg from "pg";
 
@@ -83,6 +85,20 @@ export async function insertTestOrder(email: string): Promise<string> {
     [email, JSON.stringify(address), `cs_test_e2e_${id}`, id],
   );
   return rows[0].number;
+}
+
+/** Removes products made by a test run, and their photos saved in the local uploads folder. */
+export async function deleteProductsMatching(slugFragment: string): Promise<void> {
+  const { rows } = await db().query<{ url: string }>(
+    `SELECT i.url FROM product_images i JOIN products p ON p.id = i.product_id
+     WHERE p.slug LIKE $1 AND i.url LIKE '/uploads/products/%'`,
+    [`%${slugFragment}%`],
+  );
+  await db().query(`DELETE FROM products WHERE slug LIKE $1`, [`%${slugFragment}%`]);
+  const dir = path.resolve(process.env.UPLOADS_DIR || "uploads");
+  for (const { url } of rows) {
+    await rm(path.join(dir, url.replace(/^\/uploads\//, "")), { force: true });
+  }
 }
 
 /** Removes users made by a test run, with their sessions, logins and pending sign-ins. */

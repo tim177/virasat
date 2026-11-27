@@ -38,6 +38,17 @@ export function centsToDecimalString(cents: number): string {
   return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
 }
 
+/**
+ * A dollar amount typed by a person, as cents, without floating-point maths:
+ * "249" → 24900, "249.5" → 24950, "$1,249.00" → 124900. Null if it isn't a valid amount.
+ */
+export function parseDollars(text: string): number | null {
+  const clean = text.trim().replace(/^\$/, "").replaceAll(",", "");
+  const match = clean.match(/^(\d{1,7})(?:\.(\d{1,2}))?$/);
+  if (!match) return null;
+  return Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+}
+
 /** Line total for a quantity of items, in cents. */
 export function lineTotalCents(unitPriceCents: number, quantity: number): number {
   assertCents(unitPriceCents);
