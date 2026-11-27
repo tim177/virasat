@@ -17,6 +17,7 @@ export async function getOrderBySession(stripeSessionId: string) {
       shippingCents: true,
       totalCents: true,
       paidAt: true,
+      accessToken: true,
       items: {
         orderBy: { id: "asc" },
         select: {

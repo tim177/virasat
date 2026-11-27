@@ -131,7 +131,10 @@ model CheckoutDraft {
   items           Json
   subtotalCents   Int      @map("subtotal_cents")
   stripeSessionId String?  @unique @map("stripe_session_id")
+  /// The signed-in customer who started checkout (Step 7), copied to the order.
+  userId          String?  @map("user_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at")
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@map("checkout_drafts")
@@ -166,6 +169,12 @@ model Order {
   /// The status whose customer email (shipped, delivered, cancelled) has been sent. The cron
   /// job resends it while this differs from `status` (lib/order-emails.tsx).
   statusEmailSentFor    OrderStatus? @map("status_email_sent_for")
+  /// The signed-in customer who placed it. Accounts also list orders with their verified email.
+  userId                String?      @map("user_id") @db.Uuid
+  /// Custom fit: when the admin saw the fit call booked in Cal.com.
+  fitCallBookedAt       DateTime?    @map("fit_call_booked_at")
+  /// Custom fit: when the "book your fit call" reminder went out (sent once).
+  fitCallReminderSentAt DateTime?    @map("fit_call_reminder_sent_at")
   paidAt                DateTime     @default(now()) @map("paid_at")
   confirmedAt           DateTime?    @map("confirmed_at")
   inProductionAt        DateTime?    @map("in_production_at")
@@ -178,9 +187,11 @@ model Order {
 
   items  OrderItem[]
   events OrderEvent[]
+  user   User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt(sort: Desc)])
   @@index([email])
+  @@index([userId])
   @@map("orders")
 }
 
@@ -250,6 +261,8 @@ model User {
   twoFactors  TwoFactor[]
   adminLogs   AdminLog[]
   fitProfiles FitProfile[]
+  orders      Order[]
+  drafts      CheckoutDraft[]
 
   @@map("users")
 }

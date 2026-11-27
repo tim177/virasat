@@ -76,7 +76,7 @@ export async function getAdminOrder(number: string) {
   const order = await db.order.findUnique({
     where: { number },
     include: {
-      items: { orderBy: { id: "asc" } },
+      items: { orderBy: { id: "asc" }, include: { product: { select: { gender: true } } } },
       events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
   });

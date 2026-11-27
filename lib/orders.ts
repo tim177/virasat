@@ -10,6 +10,8 @@ import { courierName } from "@/lib/couriers";
 import { getDb } from "@/lib/db";
 import { draftLinesSchema } from "@/lib/draft-schema";
 import { Prisma, type OrderStatus } from "@/lib/generated/prisma/client";
+import { describeMeasurements } from "@/lib/measurement-display";
+import { measurementSetSchema, type MeasurementSet } from "@/lib/measurements";
 import { formatCents } from "@/lib/money";
 import { canTransition, InvalidTransitionError, statusTimestampField } from "@/lib/order-status";
 
@@ -135,6 +137,7 @@ export async function createOrderFromSession(
           stripeSessionId: session.id,
           stripePaymentIntentId: paymentIntentId,
           accessToken: randomBytes(24).toString("base64url"),
+          userId: draft.userId,
           items: {
             create: lines.map((line) => ({
               productId: line.productId,
@@ -340,6 +343,90 @@ export async function recordConfirmationResent(orderId: string, admin: AdminActo
       action: "order.resend_confirmation",
       entity: "order",
       entityId: orderId,
+    });
+  });
+}
+
+/**
+ * The admin saw the customer's fit call booked in Cal.com: the order stops waiting for it and
+ * gets no reminder. Returns false if it was already marked or has no custom-fit pieces.
+ */
+export async function markFitCallBooked(orderId: string, admin: AdminActor): Promise<boolean> {
+  return getDb().$transaction(async (tx) => {
+    const { count } = await tx.order.updateMany({
+      where: { id: orderId, fitCallBookedAt: null, items: { some: { isCustom: true } } },
+      data: { fitCallBookedAt: new Date() },
+    });
+    if (count === 0) return false;
+    await tx.orderEvent.create({
+      data: { orderId, actor: admin.adminId, note: "Fit call booked" },
+    });
+    await writeAdminLog(tx, admin, {
+      action: "order.fit_call_booked",
+      entity: "order",
+      entityId: orderId,
+      before: { fitCallBooked: false },
+      after: { fitCallBooked: true },
+    });
+    return true;
+  });
+}
+
+/** Measurements can be corrected until the order ships (usually right after the fit call). */
+export const MEASUREMENT_EDIT_STATUSES: readonly OrderStatus[] = [
+  "paid",
+  "confirmed",
+  "in_production",
+];
+
+export class MeasurementsLockedError extends Error {
+  constructor() {
+    super("The order has moved past the point where measurements can change");
+    this.name = "MeasurementsLockedError";
+  }
+}
+
+/** One custom-fit piece's measurements as admin_log fields: "1. Bust": "36 in", ... */
+function measurementLogFields(piece: string, raw: unknown): Prisma.InputJsonObject {
+  const display = describeMeasurements(raw);
+  return {
+    piece,
+    ...Object.fromEntries((display?.rows ?? []).map((row) => [row.label, row.value])),
+    ...(display?.notes ? { note: display.notes } : {}),
+  };
+}
+
+/**
+ * The admin corrects a custom-fit piece's measurements (after the fit call). Checked like the
+ * customer's form, saved on the order item, and logged with before and after.
+ */
+export async function updateItemMeasurements(
+  orderId: string,
+  itemId: string,
+  rawSet: MeasurementSet,
+  admin: AdminActor,
+): Promise<void> {
+  const set = measurementSetSchema.parse(rawSet);
+  await getDb().$transaction(async (tx) => {
+    const item = await tx.orderItem.findFirst({
+      where: { id: itemId, orderId, isCustom: true },
+      select: { titleSnapshot: true, measurements: true, order: { select: { status: true } } },
+    });
+    if (!item) throw new Error(`Custom-fit item ${itemId} not found on order ${orderId}`);
+    if (!MEASUREMENT_EDIT_STATUSES.includes(item.order.status)) throw new MeasurementsLockedError();
+    await tx.orderItem.update({
+      where: { id: itemId },
+      data: { measurements: set as Prisma.InputJsonObject },
+    });
+    await tx.orderEvent.create({
+      data: { orderId, actor: admin.adminId, note: `Measurements changed: ${item.titleSnapshot}` },
+    });
+    await writeAdminLog(tx, admin, {
+      action: "order.measurements",
+      entity: "order",
+      entityId: orderId,
+      before: measurementLogFields(item.titleSnapshot, item.measurements),
+      after: measurementLogFields(item.titleSnapshot, set),
     });
   });
 }

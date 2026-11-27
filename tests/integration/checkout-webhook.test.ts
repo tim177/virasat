@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
+import path from "node:path";
 
 import type Stripe from "stripe";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -41,6 +42,11 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  // The confirmation emails these tests sent to .outbox/ (all to it-buyer@example.com).
+  for (const name of await readdir(".outbox").catch(() => [] as string[])) {
+    if (name.endsWith("-it_buyer_example_com.html"))
+      await rm(path.join(".outbox", name), { force: true });
+  }
   await db.$disconnect();
 });
 
@@ -74,7 +80,7 @@ const bagLine = (overrides: Partial<BagLine> = {}): BagLine => ({
 });
 
 /** Runs checkout with a fake Stripe that records the request instead of sending it. */
-async function checkout(lines: BagLine[]) {
+async function checkout(lines: BagLine[], customer: { id: string; email: string } | null = null) {
   const createSession = vi.fn<
     (
       params: Stripe.Checkout.SessionCreateParams,
@@ -84,7 +90,7 @@ async function checkout(lines: BagLine[]) {
     id: `${PREFIX}${randomUUID().replaceAll("-", "")}`,
     url: "https://checkout.stripe.com/c/pay/test",
   }));
-  const result = await createCheckout(lines, createSession);
+  const result = await createCheckout(lines, { createSession, customer });
   createdDraftIds.push(result.draftId);
   return { ...result, params: createSession.mock.calls[0][0] };
 }
@@ -259,6 +265,27 @@ describe("order creation from the webhook", () => {
     });
     expect(order.items[0]).toMatchObject({ isCustom: true, size: null, productionDays: 28 });
     expect(order.items[0].measurements).toEqual(customMeasurements);
+  });
+
+  it("links an order placed while signed in to the customer's account", async () => {
+    const user = await db.user.create({
+      data: { email: `it-signed-in-${randomUUID().slice(0, 8)}@example.com`, name: "" },
+    });
+    try {
+      const { draftId, params } = await checkout([bagLine()], { id: user.id, email: user.email });
+      expect(params.customer_email).toBe(user.email);
+      const draft = await db.checkoutDraft.findUniqueOrThrow({ where: { id: draftId } });
+      expect(draft.userId).toBe(user.id);
+
+      await deliver("checkout.session.completed", paidSession(draftId, draft.stripeSessionId!));
+      const order = await db.order.findUniqueOrThrow({
+        where: { stripeSessionId: draft.stripeSessionId! },
+      });
+      expect(order.userId).toBe(user.id);
+    } finally {
+      await db.order.deleteMany({ where: { userId: user.id } });
+      await db.user.delete({ where: { id: user.id } });
+    }
   });
 
   it("creates only one order when Stripe sends the same event twice", async () => {

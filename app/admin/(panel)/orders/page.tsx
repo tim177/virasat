@@ -3,7 +3,7 @@ import Form from "next/form";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { OrderStatusPill } from "@/components/admin/order-status-pill";
+import { OrderStatusPill } from "@/components/orders/order-status-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";

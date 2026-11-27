@@ -101,7 +101,9 @@ Orders are created only by the webhook. If `stripe:listen` isn't running, the "O
 
 **Emails.** Without `RESEND_API_KEY`, emails are saved as HTML files in **`.outbox/`** (git-ignored) instead of being sent. Open them in a browser to check them. A production build (`pnpm start`) also needs `EMAIL_OUTBOX=true` for this; otherwise a missing key is an error, so the live shop never drops emails silently.
 
-**Scheduled jobs** are `POST /api/cron/emails` (hourly: resend failed emails) and `POST /api/cron/drafts` (daily: delete old checkout drafts). Both need `Authorization: Bearer $CRON_SECRET`.
+**Scheduled jobs** are `POST /api/cron/emails` (hourly: resend failed emails), `POST /api/cron/drafts` (daily: delete old checkout drafts) and `POST /api/cron/fit-calls` (daily: remind custom-fit customers to book their fit call). All need `Authorization: Bearer $CRON_SECRET`.
+
+**Order pages.** Every order email links to `/orders/<number>?t=<secret>`, which works without signing in. Signed-in customers see all their orders at `/account`, including guest orders placed with the same (verified) email. Fit-call buttons link to `CALCOM_FIT_CALL_URL`; your `.env` has a placeholder so they show locally.
 
 **The real purchase test** (`tests/e2e/purchase.spec.ts`) pays on Stripe's test page with a normal card and a 3-D Secure card. It's skipped in CI and needs Google Chrome installed:
 

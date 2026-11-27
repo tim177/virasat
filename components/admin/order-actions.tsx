@@ -21,7 +21,7 @@ const t = en.admin.order;
 const courierOptions = COURIER_IDS.map((id) => ({ value: id, label: en.couriers[id] }));
 
 /** Result of the last action: a status message, or an alert for errors. */
-function ActionMessage({ state }: { state: ActionState }) {
+export function ActionMessage({ state }: { state: ActionState }) {
   if (!state) return null;
   return state.ok ? (
     <p role="status" className="flex items-start gap-2 text-body-sm text-emerald-700">

@@ -102,6 +102,15 @@ export async function insertTestOrder(
   return rows[0].number;
 }
 
+/** The secret in an order's email link (/orders/VRS-1001?t=...). */
+export async function accessTokenFor(number: string): Promise<string> {
+  const { rows } = await db().query<{ access_token: string }>(
+    `SELECT access_token FROM orders WHERE number = $1`,
+    [number],
+  );
+  return rows[0].access_token;
+}
+
 /** Removes products made by a test run, and their photos saved in the local uploads folder. */
 export async function deleteProductsMatching(slugFragment: string): Promise<void> {
   const { rows } = await db().query<{ url: string }>(

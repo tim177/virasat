@@ -5,12 +5,15 @@ import { Suspense } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { DeleteProfileButton } from "@/components/fit/delete-profile-button";
+import { OrderStatusPill } from "@/components/orders/order-status-pill";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ZariRule } from "@/components/ui/ornament";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireCustomer } from "@/lib/customer-auth";
+import { listCustomerOrders } from "@/lib/customer-orders";
 import { listFitProfiles } from "@/lib/fit-profiles";
 import { en } from "@/lib/i18n/en";
+import { formatCents } from "@/lib/money";
 
 const t = en.account;
 const tp = en.fit.profiles;
@@ -40,7 +43,10 @@ export default function AccountPage() {
 async function AccountOverview() {
   await connection();
   const customer = await requireCustomer("/account");
-  const profiles = await listFitProfiles(customer.id);
+  const [orders, profiles] = await Promise.all([
+    listCustomerOrders(customer),
+    listFitProfiles(customer.id),
+  ]);
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -51,6 +57,52 @@ async function AccountOverview() {
           <SignOutButton label={t.signOut} redirectTo="/" variant="secondary" />
         </div>
       </header>
+
+      <section aria-labelledby="your-orders" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 id="your-orders" className="font-display text-h2">
+            {t.ordersTitle}
+          </h2>
+          <p className="text-body-sm text-stone-700">{t.ordersIntro(customer.email)}</p>
+        </div>
+        {orders.length === 0 ? (
+          <div className="flex flex-col items-start gap-4 rounded-card border border-line bg-white p-6">
+            <p className="text-stone-700">{t.noOrders}</p>
+            <ButtonLink href="/shop" variant="secondary">
+              {t.startShopping}
+            </ButtonLink>
+          </div>
+        ) : (
+          <ul
+            className="divide-y divide-line rounded-card border border-line bg-white"
+            data-testid="account-orders"
+          >
+            {orders.map((order) => (
+              <li
+                key={order.number}
+                className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-4"
+              >
+                <div className="flex flex-col gap-1">
+                  <Link
+                    href={`/account/orders/${order.number}`}
+                    className="inline-flex min-h-11 items-center font-medium text-crimson-700 underline"
+                  >
+                    {order.number}
+                  </Link>
+                  <p className="text-body-sm text-stone-700">
+                    {dateFormat.format(order.paidAt)} · {t.pieces(order.pieces)}
+                    {order.hasCustom ? ` · ${en.bag.customFit}` : null}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <OrderStatusPill status={order.status} />
+                  <span className="tabular-nums">{formatCents(order.totalCents)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section aria-labelledby="fit-profiles" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-4">

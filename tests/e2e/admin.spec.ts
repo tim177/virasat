@@ -150,6 +150,58 @@ test.describe("an admin", () => {
     await expectNoWcagViolations(page);
   });
 
+  test("marks the fit call booked and corrects measurements after it", async ({ browser }) => {
+    const number = await insertTestOrder(`e2e-fitcall-${runId}@example.com`, {
+      measurements: {
+        kind: "women",
+        unit: "in",
+        values: {
+          bust: 36,
+          underBust: 31,
+          shoulder: 14.5,
+          armhole: 16,
+          upperArm: 11,
+          waist: 29,
+          hip: 39,
+          shoulderToWaist: 15,
+          sleeveLength: 8,
+          waistToFloor: 41,
+          height: 64,
+        },
+      },
+    });
+    const page = await signedInPage(browser);
+    await page.goto(`/admin/orders/${number}`);
+
+    const fitCall = page.getByRole("region", { name: "Fit call" });
+    await expect(fitCall.getByText("Not booked yet.")).toBeVisible();
+    await fitCall.getByRole("button", { name: "Mark fit call as booked" }).click();
+    await expect(fitCall.getByText(/^Booked \(marked /)).toBeVisible();
+    await expect(fitCall.getByRole("button", { name: "Mark fit call as booked" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Edit measurements for Blush organza lehenga" }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "Edit measurements for Blush organza lehenga",
+    });
+    await expect(dialog.getByLabel("6. Waist (in)")).toHaveValue("29");
+    await dialog.getByLabel("6. Waist (in)").fill("30.5");
+    await dialog.getByRole("button", { name: "Save measurements" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: "Measurements saved." })).toBeVisible();
+    await expect(page.getByTestId("measurements").getByText("30.5 in")).toBeVisible();
+    await expect(page.getByText("Measurements changed: Blush organza lehenga")).toBeVisible();
+    await expectNoWcagViolations(page);
+
+    await page.goto("/admin/log");
+    const row = page
+      .getByRole("row")
+      .filter({ hasText: "Changed custom-fit measurements" })
+      .first();
+    await expect(row).toContainText("6. Waist");
+    await expect(row).toContainText("29 in");
+    await expect(row).toContainText("30.5 in");
+  });
+
   test("processes an order from paid to delivered", async ({ browser }) => {
     const email = `e2e-order-${runId}@example.com`;
     const number = await insertTestOrder(email);

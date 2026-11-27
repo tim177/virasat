@@ -511,6 +511,16 @@ This is the most important step. Take it slowly and test it well.
   - In the measurement form they can fill it from a saved profile, and tick "Save to my fit profiles". Guests see a link to sign in instead.
   - Profiles are deleted with the account. Past orders keep their own copy of the measurements.
 - **Analytics:** `measurement_started` (form opened) and `measurement_completed` (with the kind, unit and whether a profile was saved).
+- **Orders for customers (7c):**
+  - `/account` lists every order placed while signed in (`orders.user_id`, set from the checkout draft) plus every order with the customer's email once it's verified (email code or Google), so guest orders from before the account show up. Signed-in shoppers get their email filled in on Stripe's page.
+  - Every customer email (confirmation, shipped, delivered, cancelled, fit-call reminder) links to `/orders/<number>?t=<secret>`. The page works without signing in, is never indexed, and sends no referrer to the tracking and Cal.com links. A wrong link shows a plain "We couldn't find this order".
+  - Order pages show the timeline (status changes and dates only, never internal notes), the pieces with their measurements (read-only), tracking, the address and payment. The "Order confirmed" page links to it too.
+- **Fit calls (7c):**
+  - `CALCOM_FIT_CALL_URL` is the Cal.com booking page. The confirmation email, the "Order confirmed" page and the order pages show "Book your fit call" for custom-fit orders while they're paid and not booked, with the customer's name, email and order number filled in (`metadata[order]` is kept on the Cal.com booking). Without the URL they say "we'll email you to arrange a time".
+  - **We can't see Cal.com bookings** (no Cal.com integration in the prototype). Cal.com emails you when someone books; then press **"Mark fit call as booked"** on the admin order page. That stops the reminder and is logged.
+  - **Daily reminder** (`/api/cron/fit-calls`, 15:00 UTC): one email to custom-fit orders still paid and not marked booked 2–14 days after payment. A failed email is tried again the next day.
+  - **After the call**, "Edit measurements" on the admin order page corrects a piece's measurements (same form and checks as the customer's) until the order ships. The change is an order note and an admin_log entry with each changed measurement before → after. Then press "Confirm order".
+
 
 
 ### Step 8: PWA and polish · ~3 days

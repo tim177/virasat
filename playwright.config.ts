@@ -31,6 +31,8 @@ export default defineConfig({
       // keeps these empty values instead of the keys in .env.)
       TURNSTILE_SITE_KEY: "",
       TURNSTILE_SECRET_KEY: "",
+      // Fit-call links point here in tests (never opened).
+      CALCOM_FIT_CALL_URL: "https://cal.com/virasat-test/fit-call",
     },
   },
 });

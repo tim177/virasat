@@ -13,10 +13,10 @@ export function EmptyState({
   title: string;
   description?: string;
   action?: ReactNode;
-  headingLevel?: 2 | 3;
+  headingLevel?: 1 | 2 | 3;
   className?: string;
 }) {
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = headingLevel === 1 ? "h1" : headingLevel === 2 ? "h2" : "h3";
 
   return (
     <div className={cn("flex flex-col items-center gap-4 px-4 py-12 text-center", className)}>

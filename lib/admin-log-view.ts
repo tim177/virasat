@@ -28,8 +28,12 @@ function sizeText(row: unknown): string {
   return `${String(row.size)}: ${stock}`;
 }
 
-/** "compareAtCents" → "Compare at cents", for fields without a label. */
+/**
+ * "compareAtCents" → "Compare at cents", for fields without a label. Names that already read as
+ * words ("6. Waist", logged for measurement changes) stay as they are.
+ */
 function humanize(field: string): string {
+  if (/\s/.test(field)) return field;
   const words = field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

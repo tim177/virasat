@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
-import { OrderStatusPill } from "@/components/admin/order-status-pill";
+import { OrderStatusPill } from "@/components/orders/order-status-pill";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdmin } from "@/lib/admin-auth";

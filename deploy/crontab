@@ -10,5 +10,8 @@ PATH=/usr/local/bin:/usr/bin:/bin:/snap/bin
 # Every day at 03:30: delete checkout drafts older than 7 days.
 30 3 * * * cd $HOME/virasat && bash scripts/cron.sh drafts >> $HOME/virasat-logs/cron.log 2>&1
 
+# Every day at 15:00 (10:00 US Eastern): remind custom-fit customers to book their fit call.
+0 15 * * * cd $HOME/virasat && bash scripts/cron.sh fit-calls >> $HOME/virasat-logs/cron.log 2>&1
+
 # Every night at 21:00 (02:30 in India): back up the database and photos.
 0 21 * * * cd $HOME/virasat && bash scripts/backup.sh >> $HOME/virasat-logs/backup.log 2>&1

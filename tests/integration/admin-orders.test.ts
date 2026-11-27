@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readdir } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
+import path from "node:path";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
@@ -48,6 +49,11 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  // The status emails these tests sent to .outbox/.
+  for (const name of await readdir(".outbox").catch(() => [] as string[])) {
+    if (name.includes("it_orders_example_com"))
+      await rm(path.join(".outbox", name), { force: true });
+  }
   await db.user.deleteMany({ where: { email: { endsWith: DOMAIN } } });
   await db.$disconnect();
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { COURIER_IDS } from "@/lib/couriers";
 import { OrderStatus } from "@/lib/generated/prisma/enums";
 import { en } from "@/lib/i18n/en";
+import { measurementShapeSchema } from "@/lib/measurements";
 
 // Everything the admin orders screens accept from the URL and from forms, checked with Zod.
 // Pure, so it is unit-tested; Server Actions and pages parse with these before doing anything.
@@ -107,3 +108,10 @@ export function firstIssue(error: z.ZodError): string {
   }
   return issue.message;
 }
+
+/** "Edit measurements" on a custom-fit piece. The values are fully checked in lib/orders. */
+export const itemMeasurementsSchema = z.object({
+  orderId: z.uuid(),
+  itemId: z.uuid(),
+  set: measurementShapeSchema,
+});

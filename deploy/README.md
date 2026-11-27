@@ -71,6 +71,7 @@ Fill in (the server part is at the end of `.env.example`):
 | `ADMIN_ALERT_EMAIL`                  | where new-order alerts go                                                                                     |
 | `TURNSTILE_SITE_KEY` / `_SECRET_KEY` | Cloudflare → Turnstile → Add widget for your domain (replace the test keys)                                   |
 | `GOOGLE_CLIENT_ID` / `_SECRET`       | Google Cloud → Credentials → OAuth client; redirect URI `https://www.yourdomain.com/api/auth/callback/google` |
+| `CALCOM_FIT_CALL_URL`                | your Cal.com event page, e.g. `https://cal.com/your-name/fit-call`                                            |
 | `DEV_VERIFICATION_CODE`              | delete the line (it's ignored on a server anyway)                                                             |
 | `R2_*`, `IMAGES_BASE_URL`            | optional; without them photos stay on the server (and in backups)                                             |
 | `BACKUP_BUCKET`                      | from step 7                                                                                                   |
@@ -132,7 +133,8 @@ Copy the signing secret into `STRIPE_WEBHOOK_SECRET` in `.env`, then reload the 
 1. Create a Cloud Storage bucket (Standard, `us-east1`), e.g. `virasat-backups-<something>`,
    with a **lifecycle rule: delete objects older than 30 days**. Put its name in
    `BACKUP_BUCKET`.
-2. Install the jobs (hourly email retries, daily draft clean-up, nightly backup):
+2. Install the jobs (hourly email retries, daily draft clean-up, daily fit-call reminders,
+   nightly backup):
 
    ```bash
    mkdir -p ~/virasat-logs && crontab deploy/crontab

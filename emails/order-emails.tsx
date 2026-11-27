@@ -22,6 +22,10 @@ export type EmailOrder = {
   discountCents: number;
   shippingCents: number;
   totalCents: number;
+  /** The order status page (link with the order's secret token). */
+  statusUrl: string;
+  /** Cal.com booking link for custom-fit orders, or null when Cal.com isn't set up. */
+  fitCallUrl: string | null;
   items: Array<{
     title: string;
     size: string | null;
@@ -97,6 +101,32 @@ function ItemsTable({ order }: { order: EmailOrder }) {
   );
 }
 
+function ViewOrder({ order }: { order: EmailOrder }) {
+  return (
+    <p style={text}>
+      {t.viewOrderText}{" "}
+      <a href={order.statusUrl} style={{ color: c.crimson700 }}>
+        {t.viewOrder}
+      </a>
+    </p>
+  );
+}
+
+function FitCall({ order }: { order: EmailOrder }) {
+  if (!order.fitCallUrl) return <p style={text}>{t.nextCustom}</p>;
+  return (
+    <>
+      <h2 style={{ ...heading, fontSize: "20px" }}>{t.fitCallTitle}</h2>
+      <p style={text}>{t.fitCallText}</p>
+      <p style={{ ...text, margin: "16px 0 20px" }}>
+        <a href={order.fitCallUrl} style={buttonLink}>
+          {t.fitCallButton}
+        </a>
+      </p>
+    </>
+  );
+}
+
 function Address({ order }: { order: EmailOrder }) {
   const a = order.shippingAddress;
   return (
@@ -128,9 +158,10 @@ export function OrderConfirmationEmail({ order }: { order: EmailOrder }) {
         {t.orderNumber}: {order.number}
       </p>
       <ItemsTable order={order} />
+      {hasCustom ? <FitCall order={order} /> : null}
       <h2 style={{ ...heading, fontSize: "20px" }}>{t.nextTitle}</h2>
       <p style={text}>{t.nextReady}</p>
-      {hasCustom ? <p style={text}>{t.nextCustom}</p> : null}
+      <ViewOrder order={order} />
       <h2 style={{ ...heading, fontSize: "20px" }}>{t.shipTo}</h2>
       <Address order={order} />
       <p style={muted}>{t.questions}</p>
@@ -217,6 +248,7 @@ export function OrderShippedEmail({
       ) : null}
       <p style={text}>{t.shippedEta(shippingDays.min, shippingDays.max)}</p>
       <ItemsList order={order} />
+      <ViewOrder order={order} />
       <h2 style={{ ...heading, fontSize: "20px" }}>{t.shipTo}</h2>
       <Address order={order} />
       <p style={muted}>{t.questions}</p>
@@ -231,6 +263,7 @@ export function OrderDeliveredEmail({ order }: { order: EmailOrder }) {
       <p style={text}>{t.deliveredIntro}</p>
       <ItemsList order={order} />
       <p style={text}>{t.deliveredHelp}</p>
+      <ViewOrder order={order} />
       <p style={muted}>{t.questions}</p>
     </EmailLayout>
   );
@@ -243,7 +276,31 @@ export function OrderCancelledEmail({ order }: { order: EmailOrder }) {
       <p style={text}>{t.cancelledIntro}</p>
       <ItemsList order={order} />
       <p style={text}>{t.cancelledRefund}</p>
+      <ViewOrder order={order} />
       <p style={muted}>{t.questions}</p>
+    </EmailLayout>
+  );
+}
+
+/** Sent once if a custom-fit order still has no fit call 2 days after payment. */
+export function FitCallReminderEmail({ order }: { order: EmailOrder }) {
+  return (
+    <EmailLayout preview={t.fitCallReminderPreview}>
+      <h1 style={heading}>{t.fitCallReminderSubject(order.number)}</h1>
+      <p style={text}>{t.hello(firstName(order.customerName))}</p>
+      <p style={text}>{t.fitCallReminderIntro}</p>
+      {order.fitCallUrl ? (
+        <p style={{ ...text, margin: "16px 0 20px" }}>
+          <a href={order.fitCallUrl} style={buttonLink}>
+            {t.fitCallButton}
+          </a>
+        </p>
+      ) : (
+        <p style={text}>{t.fitCallReminderNoLink}</p>
+      )}
+      <ItemsList order={order} />
+      <p style={text}>{t.fitCallReminderAlready}</p>
+      <ViewOrder order={order} />
     </EmailLayout>
   );
 }

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import {
   AdminNewOrderEmail,
+  FitCallReminderEmail,
   OrderCancelledEmail,
   OrderConfirmationEmail,
   OrderDeliveredEmail,
@@ -17,9 +18,21 @@ import { courierName, trackingUrl } from "@/lib/couriers";
 import { getDb } from "@/lib/db";
 import { SHIPPING_BUSINESS_DAYS } from "@/lib/delivery";
 import { sendEmail } from "@/lib/email/send";
+import {
+  FIT_CALL_REMINDER_DAYS,
+  FIT_CALL_REMINDER_MAX_DAYS,
+  fitCallBaseUrl,
+  fitCallUrl,
+} from "@/lib/fit-call";
 import type { OrderStatus, Prisma } from "@/lib/generated/prisma/client";
 import { en } from "@/lib/i18n/en";
 import { formatCents } from "@/lib/money";
+import { absoluteUrl } from "@/lib/site-url";
+
+/** The order status page from an email: /orders/VRS-1001?t=<secret>. */
+export function orderStatusUrl(order: { number: string; accessToken: string }): string {
+  return absoluteUrl(`/orders/${order.number}?t=${encodeURIComponent(order.accessToken)}`);
+}
 
 // Order emails. They run after the order is saved and never throw: a failed email is logged,
 // left unmarked, and retried by the cron job (/api/cron/emails). CLAUDE.md rule 4.
@@ -60,6 +73,7 @@ async function loadEmailOrder(orderId: string): Promise<LoadedEmailOrder> {
       totalCents: true,
       confirmationSentAt: true,
       adminAlertSentAt: true,
+      accessToken: true,
       items: {
         orderBy: { id: "asc" },
         select: {
@@ -72,8 +86,13 @@ async function loadEmailOrder(orderId: string): Promise<LoadedEmailOrder> {
       },
     },
   });
+  const { accessToken, ...rest } = order;
   return {
-    ...order,
+    ...rest,
+    statusUrl: orderStatusUrl({ number: order.number, accessToken }),
+    fitCallUrl: order.items.some((item) => item.isCustom)
+      ? fitCallUrl(fitCallBaseUrl(), order)
+      : null,
     shippingAddress: addressSchema.parse(order.shippingAddress),
     items: order.items.map((item) => ({
       title: item.titleSnapshot,
@@ -235,6 +254,52 @@ export async function sendRefundEmail(orderId: string, amountCents: number): Pro
       })
       .catch(() => undefined);
   }
+}
+
+/**
+ * Daily cron job: one "book your fit call" email for custom-fit orders still waiting for their
+ * fit call 2 days after payment. An order is marked only after its email went out, so a failed
+ * email is tried again the next day. Never throws.
+ */
+export async function sendFitCallReminders(
+  now = new Date(),
+): Promise<{ sent: number; failed: number }> {
+  const day = 24 * 60 * 60 * 1000;
+  const due = await getDb().order.findMany({
+    where: {
+      status: "paid",
+      fitCallBookedAt: null,
+      fitCallReminderSentAt: null,
+      paidAt: {
+        lte: new Date(now.getTime() - FIT_CALL_REMINDER_DAYS * day),
+        gt: new Date(now.getTime() - FIT_CALL_REMINDER_MAX_DAYS * day),
+      },
+      items: { some: { isCustom: true } },
+    },
+    select: { id: true },
+    orderBy: { paidAt: "asc" },
+    take: 50,
+  });
+  let sent = 0;
+  for (const { id } of due) {
+    const ok = await safely(`fit-call reminder for ${id}`, async () => {
+      const order = await loadEmailOrder(id);
+      const { html, text } = await renderEmail(<FitCallReminderEmail order={order} />);
+      await sendEmail({
+        to: order.email,
+        subject: en.email.fitCallReminderSubject(order.number),
+        html,
+        text,
+        tag: "fit-call-reminder",
+      });
+      await getDb().order.updateMany({
+        where: { id, fitCallReminderSentAt: null },
+        data: { fitCallReminderSentAt: new Date() },
+      });
+    });
+    if (ok) sent += 1;
+  }
+  return { sent, failed: due.length - sent };
 }
 
 /** Cron job: sends confirmations, admin alerts and status emails that failed earlier. */

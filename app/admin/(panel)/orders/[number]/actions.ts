@@ -3,12 +3,14 @@
 import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import { after } from "next/server";
+import { ZodError } from "zod";
 
 import type { AdminActor } from "@/lib/admin-log";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   firstIssue,
   formFields,
+  itemMeasurementsSchema,
   orderIdSchema,
   orderNoteSchema,
   statusChangeSchema,
@@ -19,9 +21,12 @@ import { resendConfirmation, sendStatusEmail } from "@/lib/order-emails";
 import { InvalidTransitionError, sendsStatusEmail } from "@/lib/order-status";
 import {
   addOrderNote,
+  markFitCallBooked,
+  MeasurementsLockedError,
   OrderChangedError,
   recordConfirmationResent,
   transitionOrder,
+  updateItemMeasurements,
 } from "@/lib/orders";
 import { clientIpFromHeaders } from "@/lib/rate-limit";
 
@@ -102,4 +107,35 @@ export async function resendConfirmationEmail(
   await recordConfirmationResent(parsed.data.orderId, actor);
   refresh();
   return { ok: true, message: t.resent };
+}
+
+export async function markFitCallBookedAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const actor = await adminActor();
+  const parsed = orderIdSchema.safeParse(formFields(formData));
+  if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
+
+  const changed = await markFitCallBooked(parsed.data.orderId, actor);
+  refresh();
+  return changed ? { ok: true, message: t.fitCallMarked } : { ok: false, message: t.errors.stale };
+}
+
+/** "Edit measurements" on a custom-fit piece (called from the measurement form, not a <form>). */
+export async function saveItemMeasurements(input: unknown): Promise<ActionState> {
+  const actor = await adminActor();
+  const parsed = itemMeasurementsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: t.errors.invalid };
+
+  try {
+    await updateItemMeasurements(parsed.data.orderId, parsed.data.itemId, parsed.data.set, actor);
+  } catch (error) {
+    if (error instanceof MeasurementsLockedError)
+      return { ok: false, message: t.measurementsLocked };
+    if (error instanceof ZodError) return { ok: false, message: t.errors.invalid };
+    throw error;
+  }
+  refresh();
+  return { ok: true, message: t.measurementsSaved };
 }

@@ -6,11 +6,13 @@ import { z } from "zod";
 import { AwaitingOrder } from "@/components/checkout/awaiting-order";
 import { OrderPlacedEffects } from "@/components/checkout/order-placed-effects";
 import { ButtonLink } from "@/components/ui/button-link";
+import { buttonClasses } from "@/components/ui/button-styles";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ZariRule } from "@/components/ui/ornament";
 import { Price } from "@/components/ui/price";
 import { Timeline } from "@/components/ui/progress";
 import { StaticImage } from "@/components/ui/static-image";
+import { fitCallBaseUrl, fitCallUrl } from "@/lib/fit-call";
 import { en } from "@/lib/i18n/en";
 import { formatCents } from "@/lib/money";
 import { getOrderBySession, maskEmail } from "@/lib/order-queries";
@@ -58,6 +60,8 @@ async function Confirmation({
 
   const firstName = order.customerName.trim().split(/\s+/)[0] || order.customerName;
   const hasCustom = order.items.some((item) => item.isCustom);
+  const bookingUrl = hasCustom ? fitCallUrl(fitCallBaseUrl(), order) : null;
+  const statusPath = `/orders/${order.number}?t=${encodeURIComponent(order.accessToken)}`;
   const address = order.shippingAddress as {
     line1: string;
     line2: string | null;
@@ -151,7 +155,17 @@ async function Confirmation({
               { label: t.steps.delivered, state: "upcoming" },
             ]}
           />
-          {hasCustom ? <p className="mt-4 text-body-sm">{t.customFitNext}</p> : null}
+          {hasCustom && bookingUrl ? (
+            <div className="mt-6 flex flex-col items-start gap-3 rounded-card bg-crimson-50 p-5">
+              <h3 className="font-display text-h3">{en.fitCall.title}</h3>
+              <p className="text-body-sm">{en.fitCall.text}</p>
+              <a href={bookingUrl} rel="noopener noreferrer" className={buttonClasses({})}>
+                {en.fitCall.book}
+              </a>
+            </div>
+          ) : hasCustom ? (
+            <p className="mt-4 text-body-sm">{t.customFitNext}</p>
+          ) : null}
         </section>
         <section aria-labelledby="confirmed-address">
           <h2 id="confirmed-address" className="mb-4 font-display text-h3">
@@ -173,7 +187,10 @@ async function Confirmation({
         </section>
       </div>
 
-      <div className="flex justify-center">
+      <div className="flex flex-wrap justify-center gap-3">
+        <ButtonLink href={statusPath} variant="secondary">
+          {t.viewOrder}
+        </ButtonLink>
         <ButtonLink href="/shop" variant="secondary">
           {t.continueShopping}
         </ButtonLink>

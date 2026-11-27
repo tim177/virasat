@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs a scheduled job: bash scripts/cron.sh emails|drafts
+# Runs a scheduled job: bash scripts/cron.sh emails|drafts|fit-calls
 # Called by cron (deploy/crontab). It calls the app's protected /api/cron/<job> route from inside
 # the web container, with CRON_SECRET, so the request never leaves the server.
 set -euo pipefail
@@ -8,9 +8,9 @@ source scripts/lib.sh
 
 job="${1:-}"
 case "$job" in
-  emails | drafts) ;;
+  emails | drafts | fit-calls) ;;
   *)
-    echo "Usage: scripts/cron.sh emails|drafts" >&2
+    echo "Usage: scripts/cron.sh emails|drafts|fit-calls" >&2
     exit 1
     ;;
 esac

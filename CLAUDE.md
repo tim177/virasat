@@ -196,6 +196,21 @@ CUSTOM FIT PATTERNS (learned in Step 7b)
   app/(shop)/account/fit-profiles/actions.ts read the session themselves.
 - Error summaries (role="alert", focused) change only on submit; field errors update live.
 
+CUSTOMER ORDER PATTERNS (learned in Step 7c)
+- Customer order reads live in lib/customer-orders.ts: ownedBy() = user_id or the verified email
+  (case-insensitive); detailSelect reads order_events with to_status only (never notes or actors).
+  Reuse it for anything customers see.
+- /orders/[number]?t= compares the token in constant time, sets referrer "no-referrer" and
+  noindex; external links use rel="noopener noreferrer". Order email links: orderStatusUrl().
+- Shop pages with a dynamic segment and no generateStaticParams need `export const instant =
+  false` (MobileNav reads usePathname in the layout, so the shell can't be prerendered).
+- Fit calls: lib/fit-call.ts (CALCOM_FIT_CALL_URL, https only; prefilled name/email/notes and
+  metadata[order]). needsFitCall() decides where the button shows. Reminder = sendFitCallReminders
+  (mark only after a successful send).
+- Admin measurement edits go through updateItemMeasurements (full checks, statuses up to
+  in_production); admin_log stores each measurement as "6. Waist": "29 in", which the log view
+  shows as is.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

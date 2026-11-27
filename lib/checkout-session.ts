@@ -13,6 +13,8 @@ export function buildCheckoutSessionParams(
   draftId: string,
   lines: DraftLine[],
   siteUrl: string,
+  /** A signed-in customer's email: Stripe fills it in on its page. */
+  customerEmail: string | null = null,
 ): Stripe.Checkout.SessionCreateParams {
   // Stripe can only show photos it can download, so local development sends none.
   const publicPhotos = siteUrl.startsWith("https://");
@@ -44,5 +46,6 @@ export function buildCheckoutSessionParams(
     cancel_url: `${siteUrl}/bag`,
     metadata: { draft_id: draftId },
     payment_intent_data: { metadata: { draft_id: draftId } },
+    ...(customerEmail ? { customer_email: customerEmail } : {}),
   };
 }

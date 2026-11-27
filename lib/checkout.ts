@@ -72,13 +72,17 @@ type CreateSession = (
 const stripeCreateSession: CreateSession = (params, options) =>
   getStripe().checkout.sessions.create(params, options);
 
-/**
- * Prices the bag on the server, saves it as a draft and opens a Stripe Checkout Session.
- * `createSession` can be replaced in tests so they don't call Stripe.
- */
+export type CheckoutOptions = {
+  /** The signed-in customer, if any: the order is linked to their account. */
+  customer?: { id: string; email: string } | null;
+  /** Replaced in tests so they don't call Stripe. */
+  createSession?: CreateSession;
+};
+
+/** Prices the bag on the server, saves it as a draft and opens a Stripe Checkout Session. */
 export async function createCheckout(
   lines: BagLine[],
-  createSession: CreateSession = stripeCreateSession,
+  { customer = null, createSession = stripeCreateSession }: CheckoutOptions = {},
 ): Promise<{ url: string; draftId: string; sessionId: string }> {
   const bag = await quoteBag(lines);
   if (!bag.ok || bag.lines.length === 0) throw new CheckoutProblemError(bag);
@@ -101,14 +105,19 @@ export async function createCheckout(
   const db = getDb();
   const draft = await db.checkoutDraft.create({
     // Zod-validated plain data, so it is valid JSON for Prisma.
-    data: { items: draftLines as Prisma.InputJsonArray, subtotalCents: bag.subtotalCents },
+    data: {
+      items: draftLines as Prisma.InputJsonArray,
+      subtotalCents: bag.subtotalCents,
+      userId: customer?.id ?? null,
+    },
     select: { id: true },
   });
 
   // The idempotency key means a retried request never opens a second session for this draft.
-  const session = await createSession(buildCheckoutSessionParams(draft.id, draftLines, siteUrl), {
-    idempotencyKey: `checkout-draft-${draft.id}`,
-  });
+  const session = await createSession(
+    buildCheckoutSessionParams(draft.id, draftLines, siteUrl, customer?.email ?? null),
+    { idempotencyKey: `checkout-draft-${draft.id}` },
+  );
   if (!session.url) throw new Error("Stripe did not return a checkout URL");
 
   await db.checkoutDraft.update({ where: { id: draft.id }, data: { stripeSessionId: session.id } });

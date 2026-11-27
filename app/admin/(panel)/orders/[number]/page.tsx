@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense, type ReactNode } from "react";
+import { Suspense, useId, type ReactNode } from "react";
 import { z } from "zod";
 
+import { EditMeasurementsButton, MarkFitCallBookedForm } from "@/components/admin/fit-call-actions";
 import {
   OrderNoteForm,
   OrderStatusActions,
   ResendConfirmationForm,
 } from "@/components/admin/order-actions";
-import { OrderStatusPill } from "@/components/admin/order-status-pill";
 import { MeasurementSummary } from "@/components/fit/measurement-summary";
+import { OrderStatusPill } from "@/components/orders/order-status-pill";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 import { Price } from "@/components/ui/price";
@@ -21,8 +22,10 @@ import { formatAdminDateTime } from "@/lib/admin-format";
 import { getAdminOrder, type AdminOrder } from "@/lib/admin-orders";
 import { courierName, trackingUrl } from "@/lib/couriers";
 import { en } from "@/lib/i18n/en";
+import { measurementShapeSchema } from "@/lib/measurements";
 import { formatCents } from "@/lib/money";
 import { adminNextStatuses } from "@/lib/order-status";
+import { MEASUREMENT_EDIT_STATUSES } from "@/lib/orders";
 import { stripePaymentUrl } from "@/lib/stripe";
 
 const t = en.admin.order;
@@ -91,6 +94,11 @@ async function OrderDetails({ params }: { params: PageProps<"/admin/orders/[numb
         </div>
 
         <div className="flex flex-col gap-6">
+          {hasCustomItems ? (
+            <Card title={t.fitCall}>
+              <FitCallDetails order={order} />
+            </Card>
+          ) : null}
           <Card title={t.customer}>
             <CustomerDetails order={order} />
             <ResendConfirmationForm orderId={order.id} />
@@ -108,15 +116,43 @@ async function OrderDetails({ params }: { params: PageProps<"/admin/orders/[numb
 }
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
+  const headingId = useId();
   return (
-    <section className="rounded-card border border-line bg-white p-5">
-      <h2 className="mb-4 font-display text-h3">{title}</h2>
+    <section aria-labelledby={headingId} className="rounded-card border border-line bg-white p-5">
+      <h2 id={headingId} className="mb-4 font-display text-h3">
+        {title}
+      </h2>
       {children}
     </section>
   );
 }
 
+function FitCallDetails({ order }: { order: AdminOrder }) {
+  return (
+    <div className="flex flex-col gap-3 text-body-sm">
+      {order.fitCallBookedAt ? (
+        <p className="text-emerald-700">
+          {t.fitCallBooked(formatAdminDateTime(order.fitCallBookedAt))}
+        </p>
+      ) : (
+        <p>{t.fitCallNotBooked}</p>
+      )}
+      {order.fitCallReminderSentAt ? (
+        <p className="text-stone-700">
+          {t.fitCallReminder(formatAdminDateTime(order.fitCallReminderSentAt))}
+        </p>
+      ) : !order.fitCallBookedAt && order.status === "paid" ? (
+        <p className="text-stone-700">{t.fitCallReminderDue}</p>
+      ) : null}
+      {!order.fitCallBookedAt && order.status === "paid" ? (
+        <MarkFitCallBookedForm orderId={order.id} />
+      ) : null}
+    </div>
+  );
+}
+
 function Items({ order }: { order: AdminOrder }) {
+  const editable = MEASUREMENT_EDIT_STATUSES.includes(order.status);
   return (
     <ul className="divide-y divide-line">
       {order.items.map((item) => {
@@ -150,6 +186,15 @@ function Items({ order }: { order: AdminOrder }) {
                     emptyText={t.noMeasurements}
                     className="mt-1"
                   />
+                  {editable ? (
+                    <EditMeasurementsButton
+                      orderId={order.id}
+                      itemId={item.id}
+                      title={item.titleSnapshot}
+                      kind={stored(item.measurements)?.kind ?? item.product?.gender ?? "women"}
+                      measurements={stored(item.measurements)}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -158,6 +203,12 @@ function Items({ order }: { order: AdminOrder }) {
       })}
     </ul>
   );
+}
+
+/** The saved measurements, if they have the usual shape (older hand-entered ones don't). */
+function stored(raw: unknown) {
+  const parsed = measurementShapeSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 function CustomerDetails({ order }: { order: AdminOrder }) {
