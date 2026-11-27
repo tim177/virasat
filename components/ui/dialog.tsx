@@ -18,10 +18,12 @@ type DialogProps = {
   children: ReactNode;
   footer?: ReactNode;
   variant?: DialogVariant;
+  /** "wide" fits a long form with a side panel (the measurement form). Modal only. */
+  size?: "default" | "wide";
 };
 
 const variants: Record<DialogVariant, string> = {
-  modal: "m-auto max-h-[85dvh] w-[min(100%-2rem,36rem)] rounded-field open:animate-dialog-in",
+  modal: "m-auto max-h-[85dvh] rounded-field open:animate-dialog-in",
   drawer: "my-0 mr-auto ml-0 h-dvh max-h-none w-[min(100%-3rem,24rem)] open:animate-drawer-in-left",
 };
 
@@ -31,7 +33,15 @@ const variants: Record<DialogVariant, string> = {
  * element that opened it, backdrop click to close, and closing when the component unmounts
  * or its route is hidden.
  */
-export function Dialog({ open, onClose, title, children, footer, variant = "modal" }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  variant = "modal",
+  size = "default",
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -79,6 +89,8 @@ export function Dialog({ open, onClose, title, children, footer, variant = "moda
       className={cn(
         "bg-white p-0 text-charcoal shadow-overlay backdrop:bg-charcoal/50",
         variants[variant],
+        variant === "modal" &&
+          (size === "wide" ? "w-[min(100%-2rem,56rem)]" : "w-[min(100%-2rem,36rem)]"),
       )}
       onClick={(event) => {
         // A click on the dialog element itself (not its content) is a click on the backdrop.

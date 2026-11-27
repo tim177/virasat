@@ -1,4 +1,5 @@
 import type { BagLine } from "@/lib/bag-schema";
+import { checkedMeasurements, type MeasurementKind, type MeasurementSet } from "@/lib/measurements";
 import { lineTotalCents } from "@/lib/money";
 
 // Prices a bag against products from our database. Pure: no database, no Stripe.
@@ -8,6 +9,7 @@ export type PricingProduct = {
   id: string;
   slug: string;
   title: string;
+  gender: MeasurementKind;
   published: boolean;
   priceCents: number;
   customFitAvailable: boolean;
@@ -18,7 +20,8 @@ export type PricingProduct = {
   variants: Array<{ id: string; size: string; stock: number | null }>;
 };
 
-export type LineProblem = "unavailable" | "sold_out" | "not_enough_stock" | "custom_unavailable";
+export type LineProblem =
+  "unavailable" | "sold_out" | "not_enough_stock" | "custom_unavailable" | "measurements_needed";
 
 export type PricedLine = {
   lineId: string;
@@ -34,6 +37,10 @@ export type PricedLine = {
   lineTotalCents: number;
   productionDays: number;
   imageUrl: string | null;
+  /** Which measurement list a custom-fit line needs (the product's gender). */
+  measurementKind: MeasurementKind | null;
+  /** Custom fit: the checked measurements, or null while they're missing or out of range. */
+  measurements: MeasurementSet | null;
   problem: LineProblem | null;
   /** When there isn't enough stock: how many can still be bought. */
   availableQuantity: number | null;
@@ -61,6 +68,8 @@ function unavailableLine(line: BagLine, title: string, problem: LineProblem): Pr
     lineTotalCents: 0,
     productionDays: 0,
     imageUrl: null,
+    measurementKind: null,
+    measurements: null,
     problem,
     availableQuantity: null,
   };
@@ -80,6 +89,7 @@ export function priceBag(lines: BagLine[], products: Map<string, PricingProduct>
       title: product.title,
       quantity: line.quantity,
       imageUrl: product.imageUrl,
+      measurementKind: line.custom ? product.gender : null,
     };
 
     if (line.custom) {
@@ -87,6 +97,9 @@ export function priceBag(lines: BagLine[], products: Map<string, PricingProduct>
         return { ...unavailableLine(line, product.title, "custom_unavailable"), ...base };
       }
       const unit = product.priceCents + product.customFitExtraCents;
+      // Never trust the browser: the measurements are checked again here, for this product.
+      const measurements = checkedMeasurements(line.measurements);
+      const usable = measurements && measurements.kind === product.gender ? measurements : null;
       return {
         ...base,
         variantId: null,
@@ -95,7 +108,8 @@ export function priceBag(lines: BagLine[], products: Map<string, PricingProduct>
         unitPriceCents: unit,
         lineTotalCents: lineTotalCents(unit, line.quantity),
         productionDays: product.customDays,
-        problem: null,
+        measurements: usable,
+        problem: usable ? null : "measurements_needed",
         availableQuantity: null,
       };
     }
@@ -119,6 +133,7 @@ export function priceBag(lines: BagLine[], products: Map<string, PricingProduct>
       unitPriceCents: product.priceCents,
       lineTotalCents: lineTotalCents(product.priceCents, line.quantity),
       productionDays: product.readyDays,
+      measurements: null,
       problem,
       availableQuantity,
     };

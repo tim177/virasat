@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { bagSchema, MAX_BAG_LINES, MAX_QUANTITY, type BagLine } from "@/lib/bag-schema";
+import type { MeasurementSet } from "@/lib/measurements";
 
 // The shopping bag lives in the browser (localStorage), so it survives reloads and needs no
 // account. It stores references only; prices are always fetched from the server.
@@ -65,6 +66,7 @@ export function addToBag(item: {
   productSlug: string;
   variantId: string | null;
   custom: boolean;
+  measurements?: MeasurementSet | null;
 }): boolean {
   const lines = read();
   if (!item.custom) {
@@ -92,9 +94,15 @@ export function addToBag(item: {
       variantId: item.custom ? null : item.variantId,
       custom: item.custom,
       quantity: 1,
+      ...(item.custom ? { measurements: item.measurements ?? null } : {}),
     },
   ]);
   return true;
+}
+
+/** Saves the measurements for a custom-fit line ("Add/Edit measurements" in the bag). */
+export function setLineMeasurements(id: string, measurements: MeasurementSet): void {
+  write(read().map((line) => (line.id === id && line.custom ? { ...line, measurements } : line)));
 }
 
 export function setLineQuantity(id: string, quantity: number): void {

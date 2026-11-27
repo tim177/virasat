@@ -1,14 +1,23 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { DeleteProfileButton } from "@/components/fit/delete-profile-button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { ZariRule } from "@/components/ui/ornament";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireCustomer } from "@/lib/customer-auth";
+import { listFitProfiles } from "@/lib/fit-profiles";
 import { en } from "@/lib/i18n/en";
 
 const t = en.account;
+const tp = en.fit.profiles;
+const dateFormat = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeZone: "America/New_York",
+});
 
 export const metadata: Metadata = {
   title: t.metaTitle,
@@ -31,6 +40,7 @@ export default function AccountPage() {
 async function AccountOverview() {
   await connection();
   const customer = await requireCustomer("/account");
+  const profiles = await listFitProfiles(customer.id);
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -41,6 +51,51 @@ async function AccountOverview() {
           <SignOutButton label={t.signOut} redirectTo="/" variant="secondary" />
         </div>
       </header>
+
+      <section aria-labelledby="fit-profiles" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 id="fit-profiles" className="font-display text-h2">
+              {tp.title}
+            </h2>
+            <p className="text-body-sm text-stone-700">{tp.intro}</p>
+          </div>
+          <ButtonLink href="/account/fit-profiles/new" variant="secondary">
+            {tp.add}
+          </ButtonLink>
+        </div>
+        {profiles.length === 0 ? (
+          <p className="rounded-card border border-line bg-white p-6 text-stone-700">{tp.empty}</p>
+        ) : (
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {profiles.map((profile) => (
+              <li
+                key={profile.id}
+                className="flex flex-col gap-1 rounded-card border border-line bg-white p-5"
+              >
+                <h3 className="font-display text-h3">{profile.name}</h3>
+                <p className="text-body-sm text-stone-700">
+                  {en.fit.kinds[profile.kind]}
+                  {profile.set ? ` · ${en.fit.unitNames[profile.set.unit]}` : null}
+                </p>
+                <p className="text-body-sm text-stone-700">
+                  {tp.updated(dateFormat.format(profile.updatedAt))}
+                </p>
+                <div className="mt-2 flex gap-4">
+                  <Link
+                    href={`/account/fit-profiles/${profile.id}`}
+                    className="inline-flex min-h-11 items-center text-crimson-700 underline"
+                  >
+                    {tp.editShort}
+                    <span className="sr-only"> {profile.name}</span>
+                  </Link>
+                  <DeleteProfileButton id={profile.id} name={profile.name} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

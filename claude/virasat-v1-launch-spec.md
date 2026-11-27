@@ -499,6 +499,19 @@ This is the most important step. Take it slowly and test it well.
 - **Google login** appears only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (Google Cloud → OAuth client, free).
 - **Local dev code:** `DEV_VERIFICATION_CODE="000000"` works for every sign-in code (customer email codes and the admin authenticator step). Real codes keep working. It's ignored when `NODE_ENV=production` or the database isn't local (unit-tested).
 - **Analytics:** `login` and `sign_up` (with the method, email or Google) are sent from a short `/login/welcome` stop after each sign-in.
+- **Custom fit (7b):**
+  - Choosing "Custom fit" on a product page turns the button into "Enter measurements". The form opens in a dialog; the piece goes in the bag only with complete measurements.
+  - The form: an inch/cm switch (typed values are converted), a numbered "where to measure" figure (the line for the field being filled in is highlighted), sections (upper body, waist and hips, lengths and height), help text for each measurement, an optional note for the tailor, and range checks. Submitting with problems shows a summary with links to each field.
+  - Works fully by keyboard; focus stays in the dialog and goes back to the button afterwards (Playwright keyboard-only test and axe check).
+  - The bag shows "Add measurements" or "Edit measurements" on custom-fit lines. Checkout is blocked until every custom-fit line has valid measurements for that piece; the server checks them again on every quote and at checkout.
+  - Measurements are saved exactly as typed, with the unit and the note: bag → checkout draft → `order_items.measurements`. The admin order page shows them numbered and labelled ("1. Bust · 91.5 cm").
+- **The measurement list is provisional.** Women: bust, under bust, shoulder width, armhole, upper arm, waist, hip, shoulder to waist, sleeve length, waist to floor, height. Men: chest, shoulder width, neck, upper arm, waist, seat, sleeve length, kurta length, trouser length, height. Ranges are in inches in `lib/measurements.ts` (cm derived). **The tailor must confirm the list, the ranges and the how-to-measure notes (Step 0), and the figure should be replaced by the tailor's diagram if they have one.**
+- **Fit profiles (7b):**
+  - Signed-in customers can add, edit and delete up to 10 profiles at `/account` ("Me", "Mum"). Names are unique per customer.
+  - In the measurement form they can fill it from a saved profile, and tick "Save to my fit profiles". Guests see a link to sign in instead.
+  - Profiles are deleted with the account. Past orders keep their own copy of the measurements.
+- **Analytics:** `measurement_started` (form opened) and `measurement_completed` (with the kind, unit and whether a profile was saved).
+
 
 ### Step 8: PWA and polish · ~3 days
 1. **PWA:**

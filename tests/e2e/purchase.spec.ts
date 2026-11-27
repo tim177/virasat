@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { closeDb, deleteOrdersMatching, orderItems, ordersByEmail } from "./helpers/db";
+import { deleteOutboxEmails } from "./helpers/outbox";
 
 // The real purchase: our bag → Stripe's hosted page (test mode) → webhook → order → email.
 // Needs real Stripe test keys in .env and webhooks forwarded to the test server:
@@ -24,6 +25,7 @@ const emailFor = (label: string) => `e2e-${label}-${runId}@example.com`;
 test.afterAll(async () => {
   // Remove the test orders so repeated runs don't pile up.
   await deleteOrdersMatching(runId);
+  await deleteOutboxEmails(runId);
   await closeDb();
 });
 

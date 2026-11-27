@@ -15,6 +15,7 @@ import {
   deleteUsersMatching,
   insertTestOrder,
 } from "./helpers/db";
+import { deleteOutboxEmails } from "./helpers/outbox";
 
 // The admin: sign-in with a password and an authenticator code (CLAUDE.md rule 7), and
 // processing an order from paid to delivered (v1 spec, Step 6).
@@ -60,6 +61,7 @@ test.describe("an admin", () => {
     await deleteProductsMatching(runId);
     await deleteUnusedUploadsSince(startedAt);
     await deleteUsersMatching(runId);
+    await deleteOutboxEmails(runId);
     await closeDb();
   });
 
@@ -124,6 +126,28 @@ test.describe("an admin", () => {
     await signInExpect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     await expect(page.getByText("Welcome, E2E Admin")).toBeVisible();
+  });
+
+  test("sees the exact custom-fit measurements on the order page", async ({ browser }) => {
+    const number = await insertTestOrder(`e2e-fit-${runId}@example.com`, {
+      measurements: {
+        kind: "women",
+        unit: "cm",
+        values: { bust: 91.5, waist: 74, height: 163 },
+        notes: "I'll wear 3-inch heels",
+      },
+    });
+    const page = await signedInPage(browser);
+    await page.goto(`/admin/orders/${number}`);
+    const measurements = page.getByTestId("measurements");
+    await expect(page.getByText("Women's measurements")).toBeVisible();
+    await expect(measurements.getByText("1. Bust")).toBeVisible();
+    await expect(measurements.getByText("91.5 cm")).toBeVisible();
+    await expect(measurements.getByText("6. Waist")).toBeVisible();
+    await expect(measurements.getByText("74 cm")).toBeVisible();
+    await expect(measurements.getByText("163 cm")).toBeVisible();
+    await expect(page.getByText("I'll wear 3-inch heels")).toBeVisible();
+    await expectNoWcagViolations(page);
   });
 
   test("processes an order from paid to delivered", async ({ browser }) => {

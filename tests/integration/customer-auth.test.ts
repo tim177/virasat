@@ -14,7 +14,9 @@ import { totpCode } from "@/lib/totp";
 // rules that keep admin accounts on password + authenticator. Every user made here is deleted.
 
 const sendEmail = vi.hoisted(() =>
-  vi.fn(async (_message: { to: string; subject: string }) => ({ id: "test" })),
+  vi.fn<(message: { to: string; subject: string }) => Promise<{ id: string }>>(async () => ({
+    id: "test",
+  })),
 );
 vi.mock("@/lib/email/send", () => ({ sendEmail }));
 

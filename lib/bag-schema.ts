@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { measurementShapeSchema } from "@/lib/measurements";
+
 // The shopping bag as stored in the browser and sent to our API. It holds only references
 // (which product, which size, how many), never prices: prices always come from our database.
 
@@ -18,9 +20,14 @@ export const bagLineSchema = z
     variantId: z.uuid().nullable(),
     custom: z.boolean(),
     quantity: z.number().int().min(1).max(MAX_QUANTITY),
+    /** Custom fit only. Checked in full by the server (lib/pricing.ts) on every quote. */
+    measurements: measurementShapeSchema.nullable().optional(),
   })
   .refine((line) => (line.custom ? line.variantId === null : line.variantId !== null), {
     message: "A line is either a size or custom fit",
+  })
+  .refine((line) => line.custom || !line.measurements, {
+    message: "Only custom-fit lines have measurements",
   });
 
 export type BagLine = z.infer<typeof bagLineSchema>;

@@ -18,6 +18,7 @@ function alert(page: Page, text: string) {
 
 test.afterAll(async () => {
   await deleteUsersMatching(runId);
+  await deleteOutboxEmails(runId);
   await closeDb();
 });
 

@@ -19,6 +19,7 @@ async function loadPricingProducts(slugs: string[]): Promise<Map<string, Pricing
       id: true,
       slug: true,
       title: true,
+      gender: true,
       status: true,
       priceCents: true,
       customFitAvailable: true,
@@ -36,6 +37,7 @@ async function loadPricingProducts(slugs: string[]): Promise<Map<string, Pricing
         id: row.id,
         slug: row.slug,
         title: row.title,
+        gender: row.gender,
         published: row.status === "published",
         priceCents: row.priceCents,
         customFitAvailable: row.customFitAvailable,
@@ -92,7 +94,8 @@ export async function createCheckout(
     unitPriceCents: line.unitPriceCents,
     productionDays: line.productionDays,
     imageUrl: line.imageUrl,
-    measurements: null,
+    // Checked in priceBag; null for standard sizes.
+    measurements: line.measurements,
   }));
 
   const db = getDb();

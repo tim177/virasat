@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,17 @@ import { cn } from "@/lib/cn";
 import { deliveryDayRange, deliveryWindow } from "@/lib/delivery";
 import type { Gender } from "@/lib/generated/prisma/enums";
 import { en } from "@/lib/i18n/en";
+import type { MeasurementSet } from "@/lib/measurements";
 import { formatCents } from "@/lib/money";
 import { useToday } from "@/lib/use-today";
 
 import { SizeGuideButton } from "./size-guide";
+
+// The measurement form loads only when a shopper picks custom fit, so the product page stays light.
+const MeasurementDialog = dynamic(
+  () => import("@/components/fit/measurement-dialog").then((m) => m.MeasurementDialog),
+  { ssr: false },
+);
 
 export type PurchaseSize = { id: string; size: string; stock: number | null };
 
@@ -47,6 +55,7 @@ export function PurchasePanel({
 }: Props) {
   const [choice, setChoice] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
+  const [measuring, setMeasuring] = useState(false);
   const firstOptionRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const today = useToday();
@@ -64,6 +73,15 @@ export function PurchasePanel({
       firstOptionRef.current?.focus();
       return;
     }
+    // Custom fit: measurements first, then the piece goes in the bag with them.
+    if (isCustom) {
+      setMeasuring(true);
+      return;
+    }
+    addLine(null);
+  }
+
+  function addLine(measurements: MeasurementSet | null) {
     const sizeLabel = isCustom
       ? en.bag.customFit
       : (sizes.find((s) => s.id === choice)?.size ?? "");
@@ -71,6 +89,7 @@ export function PurchasePanel({
       productSlug: slug,
       variantId: isCustom ? null : choice,
       custom: isCustom,
+      measurements,
     });
     if (!added) {
       toast({ title: en.bag.full, description: en.bag.fullText, tone: "error" });
@@ -195,16 +214,29 @@ export function PurchasePanel({
           fullWidth
           onClick={handleAddToBag}
           aria-disabled={!ready || undefined}
-          aria-describedby={ready ? undefined : ids.hint}
+          aria-describedby={ready && !isCustom ? undefined : ids.hint}
         >
-          {en.product.addToBag}
+          {isCustom ? en.product.enterMeasurements : en.product.addToBag}
         </Button>
-        {!ready ? (
+        {!ready || isCustom ? (
           <p id={ids.hint} className="text-center text-body-sm text-stone-700">
-            {en.product.chooseFirst}
+            {isCustom ? en.product.measurementsNext : en.product.chooseFirst}
           </p>
         ) : null}
       </div>
+
+      {customFit && isCustom ? (
+        <MeasurementDialog
+          open={measuring}
+          onClose={() => setMeasuring(false)}
+          kind={gender}
+          initial={null}
+          title={en.fit.formTitle}
+          submitLabel={en.fit.addToBag}
+          onDone={addLine}
+          source={slug}
+        />
+      ) : null}
     </div>
   );
 }

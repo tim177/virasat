@@ -44,6 +44,26 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
+/** Measurements as a shopper typed them, in centimetres, with a note for the tailor. */
+const customMeasurements = {
+  kind: "women" as const,
+  unit: "cm" as const,
+  values: {
+    bust: 91.5,
+    underBust: 78,
+    shoulder: 37.25,
+    armhole: 40,
+    upperArm: 28,
+    waist: 74,
+    hip: 99,
+    shoulderToWaist: 38,
+    sleeveLength: 20.5,
+    waistToFloor: 104,
+    height: 163,
+  },
+  notes: "I'll wear 3-inch heels",
+};
+
 const bagLine = (overrides: Partial<BagLine> = {}): BagLine => ({
   id: randomUUID(),
   productSlug: "blush-organza-lehenga",
@@ -141,6 +161,22 @@ describe("checkout", () => {
     expect(draft.stripeSessionId).toMatch(new RegExp(`^${PREFIX}`));
   });
 
+  it("refuses a custom-fit line without valid measurements and saves nothing", async () => {
+    const before = await db.checkoutDraft.count();
+    for (const measurements of [
+      undefined,
+      { ...customMeasurements, values: { ...customMeasurements.values, bust: 12 } },
+      { ...customMeasurements, kind: "men" as const },
+    ]) {
+      const problem = await checkout([
+        bagLine({ variantId: null, custom: true, measurements }),
+      ]).catch((error: unknown) => error);
+      expect(problem).toBeInstanceOf(CheckoutProblemError);
+      expect((problem as CheckoutProblemError).bag.lines[0].problem).toBe("measurements_needed");
+    }
+    expect(await db.checkoutDraft.count()).toBe(before);
+  });
+
   it("refuses a bag with a sold-out size and saves nothing", async () => {
     const before = await db.checkoutDraft.count();
     await expect(checkout([bagLine({ variantId: sizeM.id })])).rejects.toBeInstanceOf(
@@ -201,6 +237,28 @@ describe("order creation from the webhook", () => {
     expect((await db.variant.findUniqueOrThrow({ where: { id: sizeS.id } })).stock).toBe(
       (sizeS.stock ?? 0) - 1,
     );
+  });
+
+  it("copies the exact custom-fit measurements into the order", async () => {
+    const { draftId, params } = await checkout([
+      bagLine({ variantId: null, custom: true, measurements: customMeasurements }),
+    ]);
+    expect(params.line_items?.[0]).toMatchObject({ price_data: { unit_amount: 72500 } });
+    const draft = await db.checkoutDraft.findUniqueOrThrow({ where: { id: draftId } });
+    expect((draft.items as Array<{ measurements: unknown }>)[0].measurements).toEqual(
+      customMeasurements,
+    );
+
+    await deliver(
+      "checkout.session.completed",
+      paidSession(draftId, draft.stripeSessionId!, { amount_subtotal: 72500, amount_total: 72500 }),
+    );
+    const order = await db.order.findUniqueOrThrow({
+      where: { stripeSessionId: draft.stripeSessionId! },
+      include: { items: true },
+    });
+    expect(order.items[0]).toMatchObject({ isCustom: true, size: null, productionDays: 28 });
+    expect(order.items[0].measurements).toEqual(customMeasurements);
   });
 
   it("creates only one order when Stripe sends the same event twice", async () => {

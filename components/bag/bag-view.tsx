@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -13,14 +14,20 @@ import { Price } from "@/components/ui/price";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { track } from "@/lib/analytics";
-import { MAX_QUANTITY } from "@/lib/bag-schema";
-import { removeLine, setLineQuantity, useBag } from "@/lib/bag-store";
+import { MAX_QUANTITY, type BagLine } from "@/lib/bag-schema";
+import { removeLine, setLineMeasurements, setLineQuantity, useBag } from "@/lib/bag-store";
 import { en } from "@/lib/i18n/en";
+import type { MeasurementSet } from "@/lib/measurements";
 import { formatCents } from "@/lib/money";
 import type { PricedBag, PricedLine } from "@/lib/pricing";
 import { useHydrated } from "@/lib/use-hydrated";
 
 const t = en.bag;
+
+const MeasurementDialog = dynamic(
+  () => import("@/components/fit/measurement-dialog").then((m) => m.MeasurementDialog),
+  { ssr: false },
+);
 
 /** The bag page: lines from the browser, prices and availability from the server. */
 export function BagView() {
@@ -130,7 +137,11 @@ export function BagView() {
         </h2>
         <ul className="divide-y divide-line border-y border-line">
           {bag.lines.map((line) => (
-            <BagRow key={line.lineId} line={line} />
+            <BagRow
+              key={line.lineId}
+              line={line}
+              stored={lines.find((stored) => stored.id === line.lineId)}
+            />
           ))}
         </ul>
       </section>
@@ -194,15 +205,27 @@ function problemText(line: PricedLine): string | null {
       return t.problems.custom_unavailable;
     case "not_enough_stock":
       return t.problems.not_enough_stock(line.availableQuantity ?? 0);
+    case "measurements_needed":
+      return t.problems.measurements_needed;
     default:
       return null;
   }
 }
 
-function BagRow({ line }: { line: PricedLine }) {
+function BagRow({ line, stored }: { line: PricedLine; stored: BagLine | undefined }) {
   const problem = problemText(line);
   const href = `/p/${line.productSlug}`;
-  const canBuy = line.problem === null || line.problem === "not_enough_stock";
+  const canBuy =
+    line.problem === null ||
+    line.problem === "not_enough_stock" ||
+    line.problem === "measurements_needed";
+  const [measuring, setMeasuring] = useState(false);
+  const toast = useToast();
+  // What the shopper entered (even if a check now fails), so editing starts from it.
+  const savedMeasurements = (line.measurements ??
+    stored?.measurements ??
+    null) as MeasurementSet | null;
+  const measurementKind = line.measurementKind;
   const maxQuantity = Math.min(MAX_QUANTITY, line.availableQuantity ?? MAX_QUANTITY);
 
   return (
@@ -231,6 +254,11 @@ function BagRow({ line }: { line: PricedLine }) {
           {canBuy ? ` · ${formatCents(line.unitPriceCents)}` : null}
         </p>
         {line.isCustom ? <p className="text-body-sm text-stone-700">{t.customFitNote}</p> : null}
+        {line.isCustom && line.measurements ? (
+          <p className="text-body-sm text-emerald-700">
+            {en.fit.kinds[line.measurements.kind]} · {en.fit.unitNames[line.measurements.unit]}
+          </p>
+        ) : null}
         {problem ? (
           <p className="flex items-start gap-1.5 text-body-sm text-error">
             <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
@@ -272,6 +300,12 @@ function BagRow({ line }: { line: PricedLine }) {
               {t.reduceTo(line.availableQuantity)}
             </Button>
           ) : null}
+          {line.isCustom && measurementKind ? (
+            <Button variant="link" onClick={() => setMeasuring(true)}>
+              {line.measurements ? t.editMeasurements : t.addMeasurements}
+              <span className="sr-only"> {t.measurementsFor(line.title)}</span>
+            </Button>
+          ) : null}
           <Button
             variant="link"
             aria-label={t.remove(line.title)}
@@ -281,6 +315,22 @@ function BagRow({ line }: { line: PricedLine }) {
           </Button>
         </div>
       </div>
+      {/* Stays mounted, so closing it returns focus to the button that opened it. */}
+      {line.isCustom && measurementKind ? (
+        <MeasurementDialog
+          open={measuring}
+          onClose={() => setMeasuring(false)}
+          kind={measurementKind}
+          initial={savedMeasurements?.kind === measurementKind ? savedMeasurements : null}
+          title={line.measurements ? en.fit.editTitle : en.fit.formTitle}
+          submitLabel={en.fit.save}
+          onDone={(set) => {
+            setLineMeasurements(line.lineId, set);
+            toast({ title: t.measurementsSaved, description: line.title, tone: "success" });
+          }}
+          source="bag"
+        />
+      ) : null}
     </li>
   );
 }

@@ -245,10 +245,11 @@ model User {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  sessions   Session[]
-  accounts   Account[]
-  twoFactors TwoFactor[]
-  adminLogs  AdminLog[]
+  sessions    Session[]
+  accounts    Account[]
+  twoFactors  TwoFactor[]
+  adminLogs   AdminLog[]
+  fitProfiles FitProfile[]
 
   @@map("users")
 }
@@ -341,4 +342,27 @@ model AdminLog {
   @@index([createdAt(sort: Desc)])
   @@index([entity, entityId])
   @@map("admin_log")
+}
+
+// ─── Custom fit (Step 7) ────────────────────────────────────────────────────
+
+/// Measurements a signed-in customer saved to reuse ("Me", "Mum"). Checked by lib/measurements.ts.
+model FitProfile {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  /// Up to 40 characters, unique per customer (database rules).
+  name         String
+  /// Which measurement list: women's or men's pieces.
+  kind         Gender
+  /// "in" or "cm" (database rule): the unit the values are in.
+  unit         String   @map("units")
+  /// { values: { bust: 36.5, ... }, notes?: string }
+  measurements Json
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("fit_profiles")
 }

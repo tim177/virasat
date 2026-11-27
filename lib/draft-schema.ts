@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { measurementShapeSchema } from "@/lib/measurements";
+
 // A bag line as priced by our server and saved in checkout_drafts.items while the shopper is on
 // Stripe's page. The webhook reads it back (validated again) to build the order.
 
@@ -14,8 +16,11 @@ export const draftLineSchema = z.object({
   unitPriceCents: z.number().int().positive(),
   productionDays: z.number().int().positive(),
   imageUrl: z.string().nullable(),
-  /** Custom-fit measurements (the form arrives in Step 7). */
-  measurements: z.record(z.string(), z.unknown()).nullable(),
+  /**
+   * Custom-fit measurements, fully checked at checkout. Only the shape is checked here, so a
+   * range changed between checkout and the webhook can never stop a paid order being saved.
+   */
+  measurements: measurementShapeSchema.nullable(),
 });
 
 export type DraftLine = z.infer<typeof draftLineSchema>;

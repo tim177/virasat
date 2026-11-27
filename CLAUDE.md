@@ -180,6 +180,22 @@ LOGIN PATTERNS (learned in Step 7a)
   from .outbox/ (tests/e2e/helpers/outbox.ts) because `next start` ignores the dev code.
   playwright.config.ts blanks the Turnstile keys.
 
+CUSTOM FIT PATTERNS (learned in Step 7b)
+- lib/measurements.ts is the one place for the measurement lists, ranges (inches; cm derived),
+  parsing and checks. measurementShapeSchema = shape only (bag storage, checkout drafts: a later
+  range change must never block a paid order); measurementSetSchema/checkedMeasurements = full
+  checks (quote, checkout, fit profiles). Labels/help live in en.fit.fields[kind][key]; a unit
+  test checks every field has strings and a diagram line.
+- priceBag() re-checks custom-fit measurements for the product's gender and reports
+  "measurements_needed"; never trust measurements from the browser.
+- Show measurements with <MeasurementSummary> (describeMeasurements in lib/measurement-display.ts):
+  numbered as in the form, exactly as saved, never converted.
+- The measurement form (components/fit) is code-split with next/dynamic from the product page and
+  the bag. Keep dialogs mounted and toggle `open`, so closing returns focus to the opener.
+- Fit profiles: lib/fit-profiles.ts functions all take the customer's id; Server Actions in
+  app/(shop)/account/fit-profiles/actions.ts read the session themselves.
+- Error summaries (role="alert", focused) change only on submit; field errors update live.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

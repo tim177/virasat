@@ -298,7 +298,8 @@ describe("notes and emails", () => {
 
 describe("order list", () => {
   it("filters by status and searches by number or email, with counts per status", async () => {
-    const tag = randomUUID().slice(0, 8);
+    // Starts with a letter: an all-digit tag would be searched as an order number.
+    const tag = `t${randomUUID().slice(0, 8)}`;
     const a = await makeOrder({ email: `priya-${tag}${DOMAIN}` });
     const b = await makeOrder({ email: `meera-${tag}${DOMAIN}` });
     await transitionOrder(b.id, "confirmed", admin.adminId);

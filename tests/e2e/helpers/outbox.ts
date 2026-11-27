@@ -36,11 +36,11 @@ export async function loginCodeFor(email: string, after = 0): Promise<string> {
   return code;
 }
 
-/** Deletes the emails a test sent to this address. */
-export async function deleteOutboxEmails(email: string): Promise<void> {
+/** Deletes the emails a test run sent: every address containing `fragment` (e.g. its run id). */
+export async function deleteOutboxEmails(fragment: string): Promise<void> {
   const names = await readdir(OUTBOX).catch(() => [] as string[]);
-  const suffix = `-${email.replace(/[^a-z0-9]+/gi, "_").slice(0, 40)}.html`;
-  for (const name of names.filter((n) => n.endsWith(suffix))) {
+  const part = fragment.replace(/[^a-z0-9]+/gi, "_");
+  for (const name of names.filter((n) => n.includes(part))) {
     await rm(path.join(OUTBOX, name), { force: true });
   }
 }

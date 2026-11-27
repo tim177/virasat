@@ -48,10 +48,18 @@ test("the bag survives a reload and adding the same size again adds one more", a
 test("custom fit is its own line with the extra price", async ({ page }) => {
   await page.goto("/p/emerald-velvet-lehenga");
   await page.getByText("Custom fit", { exact: true }).click();
-  await page.getByRole("button", { name: "Add to bag" }).click();
+  await page.getByRole("button", { name: "Enter measurements" }).click();
+  const dialog = page.getByRole("dialog", { name: "Your measurements" });
+  const inches = ["36", "31", "14.5", "16", "11", "29", "39", "15", "8", "41", "64"];
+  const inputs = dialog.getByRole("textbox", { name: /^\d+\. / });
+  await expect(inputs).toHaveCount(inches.length);
+  for (const [index, value] of inches.entries()) await inputs.nth(index).fill(value);
+  await dialog.getByRole("button", { name: "Add to bag" }).click();
+  await expect(dialog).toBeHidden();
   await page.goto("/bag");
   const line = page.getByTestId("bag-line");
   await expect(line).toContainText("Custom fit");
+  await expect(line).toContainText("Women's measurements · Inches");
   await expect(page.getByTestId("bag-total")).toHaveText("$980.00");
 });
 

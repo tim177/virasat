@@ -56,8 +56,14 @@ export async function deleteOrdersMatching(emailFragment: string): Promise<void>
   await db().query(`DELETE FROM orders WHERE email LIKE $1`, [`%${emailFragment}%`]);
 }
 
-/** A paid order for one lehenga, as the Stripe webhook would save it. Returns its number. */
-export async function insertTestOrder(email: string): Promise<string> {
+/**
+ * A paid order for one lehenga, as the Stripe webhook would save it. Returns its number.
+ * With `measurements`, the lehenga is a custom-fit piece made to them.
+ */
+export async function insertTestOrder(
+  email: string,
+  options: { measurements?: unknown } = {},
+): Promise<string> {
   const id = randomUUID().replaceAll("-", "");
   const address = {
     line1: "1 Main St",
@@ -74,15 +80,24 @@ export async function insertTestOrder(email: string): Promise<string> {
        VALUES (gen_random_uuid(), $1, 'Asha Rao', $2::jsonb, 68000, 68000, $3, $4, now())
        RETURNING id, number
      ), items AS (
-       INSERT INTO order_items (id, order_id, title_snapshot, size, unit_price_cents, quantity,
-                                production_days)
-       SELECT gen_random_uuid(), id, 'Blush organza lehenga', 'S (US 4–6)', 68000, 1, 3 FROM o
+       INSERT INTO order_items (id, order_id, title_snapshot, size, is_custom, measurements,
+                                unit_price_cents, quantity, production_days)
+       SELECT gen_random_uuid(), id, 'Blush organza lehenga',
+              CASE WHEN $5::jsonb IS NULL THEN 'S (US 4–6)' END, $5::jsonb IS NOT NULL, $5::jsonb,
+              68000, 1, 3
+       FROM o
      ), events AS (
        INSERT INTO order_events (id, order_id, to_status, actor, note)
        SELECT gen_random_uuid(), id, 'paid', 'stripe', 'Paid $680.00' FROM o
      )
      SELECT number FROM o`,
-    [email, JSON.stringify(address), `cs_test_e2e_${id}`, id],
+    [
+      email,
+      JSON.stringify(address),
+      `cs_test_e2e_${id}`,
+      id,
+      options.measurements ? JSON.stringify(options.measurements) : null,
+    ],
   );
   return rows[0].number;
 }

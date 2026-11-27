@@ -10,6 +10,7 @@ import {
   ResendConfirmationForm,
 } from "@/components/admin/order-actions";
 import { OrderStatusPill } from "@/components/admin/order-status-pill";
+import { MeasurementSummary } from "@/components/fit/measurement-summary";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 import { Price } from "@/components/ui/price";
@@ -119,12 +120,6 @@ function Items({ order }: { order: AdminOrder }) {
   return (
     <ul className="divide-y divide-line">
       {order.items.map((item) => {
-        const measurements =
-          item.measurements &&
-          typeof item.measurements === "object" &&
-          !Array.isArray(item.measurements)
-            ? Object.entries(item.measurements)
-            : null;
         return (
           <li key={item.id} className="flex gap-4 py-4 first:pt-0 last:pb-0">
             <div className="relative h-24 w-18 shrink-0 overflow-hidden rounded-card bg-jaali">
@@ -150,18 +145,11 @@ function Items({ order }: { order: AdminOrder }) {
               {item.isCustom ? (
                 <div className="text-body-sm">
                   <p className="font-medium">{t.measurements}</p>
-                  {measurements && measurements.length > 0 ? (
-                    <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-                      {measurements.map(([key, value]) => (
-                        <div key={key}>
-                          <dt className="text-stone-700">{key}</dt>
-                          <dd>{String(value)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : (
-                    <p className="text-stone-700">{t.noMeasurements}</p>
-                  )}
+                  <MeasurementSummary
+                    measurements={item.measurements}
+                    emptyText={t.noMeasurements}
+                    className="mt-1"
+                  />
                 </div>
               ) : null}
             </div>

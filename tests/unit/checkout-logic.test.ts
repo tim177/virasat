@@ -15,6 +15,7 @@ const lehenga: PricingProduct = {
   id: "0190a0b0-0000-7000-8000-0000000000aa",
   slug: "test-lehenga",
   title: "Test lehenga",
+  gender: "women",
   published: true,
   priceCents: 68000,
   customFitAvailable: true,
@@ -30,6 +31,24 @@ const lehenga: PricingProduct = {
 };
 
 const products = new Map([[lehenga.slug, lehenga]]);
+
+const womensMeasurements = {
+  kind: "women" as const,
+  unit: "in" as const,
+  values: {
+    bust: 36,
+    underBust: 31,
+    shoulder: 14.5,
+    armhole: 16,
+    upperArm: 11,
+    waist: 29,
+    hip: 39,
+    shoulderToWaist: 15,
+    sleeveLength: 8,
+    waistToFloor: 41,
+    height: 64,
+  },
+};
 const line = (overrides: Partial<Parameters<typeof priceBag>[0][number]> = {}) => ({
   id: "line-1",
   productSlug: "test-lehenga",
@@ -54,13 +73,44 @@ describe("priceBag", () => {
   });
 
   it("adds the custom-fit extra and uses the custom making time", () => {
-    const bag = priceBag([line({ id: "c", variantId: null, custom: true })], products);
+    const bag = priceBag(
+      [line({ id: "c", variantId: null, custom: true, measurements: womensMeasurements })],
+      products,
+    );
+    expect(bag.ok).toBe(true);
     expect(bag.lines[0]).toMatchObject({
       isCustom: true,
       size: null,
       unitPriceCents: 72500,
       productionDays: 28,
+      measurementKind: "women",
+      measurements: womensMeasurements,
+      problem: null,
     });
+  });
+
+  it("needs complete, in-range measurements for the right kind on custom-fit lines", () => {
+    const custom = (measurements: unknown) =>
+      priceBag(
+        [line({ id: "c", variantId: null, custom: true, measurements: measurements as never })],
+        products,
+      ).lines[0];
+
+    expect(custom(undefined)).toMatchObject({ problem: "measurements_needed", measurements: null });
+    expect(custom(null).problem).toBe("measurements_needed");
+    // Out of range (the browser can't be trusted), missing one, or men's for a women's piece.
+    expect(
+      custom({ ...womensMeasurements, values: { ...womensMeasurements.values, bust: 99 } }).problem,
+    ).toBe("measurements_needed");
+    const withoutBust = Object.fromEntries(
+      Object.entries(womensMeasurements.values).filter(([key]) => key !== "bust"),
+    );
+    expect(custom({ ...womensMeasurements, values: withoutBust }).problem).toBe(
+      "measurements_needed",
+    );
+    expect(custom({ ...womensMeasurements, kind: "men" }).problem).toBe("measurements_needed");
+    // The price is still shown, so the bag can say what's missing.
+    expect(custom(undefined).unitPriceCents).toBe(72500);
   });
 
   it("treats empty stock as made to order", () => {
@@ -101,6 +151,11 @@ describe("bagLineSchema", () => {
   it("accepts a size line and a custom-fit line", () => {
     expect(bagLineSchema.safeParse(line()).success).toBe(true);
     expect(bagLineSchema.safeParse(line({ variantId: null, custom: true })).success).toBe(true);
+    expect(
+      bagLineSchema.safeParse(
+        line({ variantId: null, custom: true, measurements: womensMeasurements }),
+      ).success,
+    ).toBe(true);
   });
 
   it.each([
@@ -111,6 +166,15 @@ describe("bagLineSchema", () => {
     ["fractional quantity", { quantity: 1.5 }],
     ["bad slug", { productSlug: "../etc/passwd" }],
     ["not a uuid", { variantId: "123" }],
+    ["measurements on a size line", { measurements: womensMeasurements }],
+    [
+      "measurements that aren't numbers",
+      {
+        variantId: null,
+        custom: true,
+        measurements: { kind: "women", unit: "in", values: { bust: "36" } },
+      },
+    ],
   ])("rejects %s", (_name, overrides) => {
     expect(bagLineSchema.safeParse(line(overrides as never)).success).toBe(false);
   });
