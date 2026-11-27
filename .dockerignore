@@ -1,0 +1,21 @@
+# Keep the Docker build context small and free of secrets.
+.git
+.github
+node_modules
+.next
+lib/generated
+.env
+.env.*
+!.env.example
+deploy/local.env
+deploy/certs
+backups
+uploads
+.outbox
+test-results
+playwright-report
+blob-report
+coverage
+*.log
+*.tsbuildinfo
+claude

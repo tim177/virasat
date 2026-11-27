@@ -57,3 +57,8 @@ next-env.d.ts
 
 # product photos uploaded locally when R2 is not set up (lib/storage.ts)
 /uploads/
+
+# server and local production-test files (deploy/README.md)
+/deploy/local.env
+/deploy/certs/
+/backups/

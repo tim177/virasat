@@ -445,6 +445,12 @@ This is the most important step. Take it slowly and test it well.
   - "Running low": the 10 lowest sizes of published products with 2 or fewer pieces left, sold-out first, with the total.
   - The 5 latest orders.
 - **Admin log (6d)** at `/admin/log`: every admin change, newest first, filtered by orders or products, 50 per page. It shows who (with IP), when, what it was about (with a link), and each changed field as before → after, in plain words ("Price: $349.00 → $299.00").
+- **First deploy (6e), prepared and tested locally:** the Google Cloud account, domain and Cloudflare come at the end, before Step 9. Nothing in Steps 7–8 waits for them. The production setup (`Dockerfile`, `docker-compose.prod.yml`, `deploy/Caddyfile`, `scripts/deploy.sh`) runs on a laptop over HTTPS with `deploy/local.env`. The server runbook is `deploy/README.md`.
+  - The image is built on the server. `next build` reads the catalogue through Postgres on the server's loopback address (passed as a build secret), so the shop pages are prerendered with real products.
+  - Migrations, `admin:create` and the seed run in a separate `tools` container.
+  - Caddy serves HTTPS with a **Cloudflare Origin Certificate** (Full strict), and the bare domain redirects to `www`. The server firewall allows 80/443 from Cloudflare only, because the app trusts Cloudflare's visitor-IP header for rate limits.
+  - Scheduled jobs (`deploy/crontab`) call `/api/cron/*` from inside the app container with `CRON_SECRET`: hourly emails, daily drafts at 03:30 UTC, and a nightly backup at 21:00 UTC (02:30 India).
+  - Backups are a `pg_dump` plus the locally stored photos, kept 7 days on the server and 30 days in a Cloud Storage bucket. `scripts/restore-check.sh` restores the newest one into a temporary database to prove it works.
 - **Sample photos** in `public/seed` are now free Unsplash photos of similar garments, cropped to 3:4, each with a close-up crop as the second photo (credits: `public/seed/CREDITS.md`). They're for development and demos only. Launch needs photos of the real pieces.
 
 ### Step 7: Accounts, custom fit and order status · ~5 days

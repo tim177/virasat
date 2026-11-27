@@ -1,0 +1,14 @@
+# Scheduled jobs for the server. Install once (as the user that owns ~/virasat):
+#   crontab deploy/crontab
+# Times are UTC. Logs go to ~/virasat-logs (created by deploy/README.md step 6).
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/snap/bin
+
+# Every hour: resend emails that failed (order confirmations, admin alerts, status emails).
+5 * * * * cd $HOME/virasat && bash scripts/cron.sh emails >> $HOME/virasat-logs/cron.log 2>&1
+
+# Every day at 03:30: delete checkout drafts older than 7 days.
+30 3 * * * cd $HOME/virasat && bash scripts/cron.sh drafts >> $HOME/virasat-logs/cron.log 2>&1
+
+# Every night at 21:00 (02:30 in India): back up the database and photos.
+0 21 * * * cd $HOME/virasat && bash scripts/backup.sh >> $HOME/virasat-logs/backup.log 2>&1

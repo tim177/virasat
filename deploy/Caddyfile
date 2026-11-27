@@ -1,0 +1,25 @@
+# Caddy: HTTPS in front of the Next.js app. Values come from .env through
+# docker-compose.prod.yml:
+#   SITE_DOMAIN  the shop, e.g. www.example.com
+#   APEX_DOMAIN  the bare domain, redirected to the shop, e.g. example.com
+#   CADDY_TLS    "/certs/origin.pem /certs/origin-key.pem" (Cloudflare Origin Certificate,
+#                for Cloudflare's "Full (strict)" mode) or "internal" (local test only)
+#   HSTS         Strict-Transport-Security value ("max-age=0" for a local test)
+
+{$SITE_DOMAIN} {
+	tls {$CADDY_TLS}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "{$HSTS}"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+	reverse_proxy web:3000
+}
+
+{$APEX_DOMAIN} {
+	tls {$CADDY_TLS}
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}

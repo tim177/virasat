@@ -7,6 +7,9 @@ import type { NextConfig } from "next";
 const imagesBaseUrl = process.env.IMAGES_BASE_URL?.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  // The Docker image runs Next's small standalone server (NEXT_OUTPUT=standalone in the
+  // Dockerfile). Local development, CI and `pnpm start` keep the normal output.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   cacheComponents: true,
   partialPrefetching: true,
   images: {

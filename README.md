@@ -105,3 +105,13 @@ STRIPE_E2E=1 CI=1 E2E_PORT=3300 pnpm exec playwright test tests/e2e/purchase.spe
 The test deletes its orders afterwards. `SITE_URL` must match the server's port (Playwright sets it), because Stripe sends the customer back there after paying.
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, format check, unit tests, migrations, seed, integration tests, build and browser tests on every push and pull request.
+
+## Deploying
+
+The shop runs on one server with Docker Compose: Caddy (HTTPS) → the Next.js app → Postgres, behind Cloudflare. Step-by-step setup (Google Cloud, Cloudflare, Stripe webhook, scheduled jobs, backups and restore) is in **[deploy/README.md](deploy/README.md)**. After that, every update is:
+
+```bash
+bash scripts/deploy.sh
+```
+
+The same production setup can be tested on a laptop with Docker Desktop (see the end of `deploy/README.md`).

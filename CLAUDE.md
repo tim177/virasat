@@ -148,6 +148,19 @@ ADMIN AND LOGIN PATTERNS (learned in Step 6)
 - A link's visible text must be inside its accessible name (axe label-content-name-mismatch):
   add extra words with sr-only text, not aria-label.
 
+DEPLOY PATTERNS (learned in Step 6e)
+- Production = docker-compose.prod.yml (caddy, web, postgres, plus a `tools` profile for
+  migrations/admin:create/seed), built and started by `bash scripts/deploy.sh`. Runbook:
+  deploy/README.md. Test it locally with APP_ENV_FILE=deploy/local.env (git-ignored).
+- `next build` needs the database (it prerenders the shop): the web image builds with
+  network host and DATABASE_URL as a BuildKit secret pointing at Postgres on 127.0.0.1.
+  NEXT_OUTPUT=standalone only in the Dockerfile; dev, CI and `pnpm start` keep normal output.
+- Server scripts read .env with env_value() in scripts/lib.sh (never `source .env`). Call them
+  as `bash scripts/x.sh`; .gitattributes keeps *.sh, Caddyfile and crontab with LF endings.
+- Cron jobs run inside the web container (scripts/cron.sh), not through the public URL.
+- New env vars: add to .env.example (server section if server-only), and to the Dockerfile
+  build ARGs + compose build args if pages need them at build time (NEXT_PUBLIC_*, SITE_URL).
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

@@ -1,0 +1,107 @@
+# Production and staging: Caddy (HTTPS) → Next.js (web) → Postgres, on one server.
+# Run it through scripts/deploy.sh; setup steps are in deploy/README.md.
+#
+# Settings come from the .env file next to this one (on the server only, chmod 600). For a
+# local test of this setup, scripts/deploy.sh uses deploy/local.env instead (APP_ENV_FILE).
+name: virasat
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: virasat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: virasat
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Only on the server's own loopback address, never the internet: the web build reads the
+    # catalogue through it (to prerender the shop).
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U virasat -d virasat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: web
+      # The build reaches Postgres on 127.0.0.1 (see above).
+      network: host
+      args:
+        # Set by scripts/deploy.sh so the app is rebuilt with the current catalogue.
+        BUILD_ID: ${BUILD_ID:-manual}
+        SITE_URL: ${SITE_URL:?Set SITE_URL in .env}
+        IMAGES_BASE_URL: ${IMAGES_BASE_URL:-}
+        ALLOW_INDEXING: ${ALLOW_INDEXING:-}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
+        SENTRY_ORG: ${SENTRY_ORG:-}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-}
+      secrets:
+        - database_url
+        - sentry_auth_token
+    image: virasat-web:latest
+    restart: unless-stopped
+    env_file: ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://virasat:${POSTGRES_PASSWORD}@postgres:5432/virasat
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      # Product photos, when R2 isn't set up. Backed up nightly by scripts/backup.sh.
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.11.8-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN in .env, e.g. www.example.com}
+      APEX_DOMAIN: ${APEX_DOMAIN:?Set APEX_DOMAIN in .env, e.g. example.com}
+      CADDY_TLS: ${CADDY_TLS:-/certs/origin.pem /certs/origin-key.pem}
+      HSTS: ${HSTS:-max-age=31536000}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/certs:/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+  # One-off jobs with the full repo and dev tools: migrations, admin accounts, seed.
+  tools:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: tools
+    image: virasat-tools:latest
+    env_file: ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://virasat:${POSTGRES_PASSWORD}@postgres:5432/virasat
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+secrets:
+  # Set by scripts/deploy.sh for the build only.
+  database_url:
+    environment: BUILD_DATABASE_URL
+  sentry_auth_token:
+    environment: SENTRY_AUTH_TOKEN
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:
