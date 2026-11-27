@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
+import { Suspense } from "react";
 
 import { AdminLoginForm } from "@/components/admin/login-form";
 import { ZariRule } from "@/components/ui/ornament";
+import { Skeleton } from "@/components/ui/skeleton";
 import { en } from "@/lib/i18n/en";
+import { turnstileKeys } from "@/lib/login-config";
 
 const t = en.admin.login;
 
@@ -18,8 +22,16 @@ export default function AdminLoginPage() {
           <h1 className="font-display text-h2">{t.title}</h1>
           <p className="text-body-sm text-stone-700">{t.intro}</p>
         </header>
-        <AdminLoginForm />
+        <Suspense fallback={<Skeleton className="h-56" />}>
+          <LoginFormWithOptions />
+        </Suspense>
       </div>
     </main>
   );
+}
+
+/** The Turnstile key is read per request, so adding it on a server needs no rebuild. */
+async function LoginFormWithOptions() {
+  await connection();
+  return <AdminLoginForm turnstileSiteKey={turnstileKeys()?.siteKey ?? null} />;
 }

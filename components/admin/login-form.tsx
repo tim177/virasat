@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { Turnstile } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { AlertCircleIcon } from "@/components/ui/icons";
-import { authClient } from "@/lib/auth-client";
+import { authClient, withTurnstile } from "@/lib/auth-client";
 import { en } from "@/lib/i18n/en";
 
 const t = en.admin.login;
@@ -16,6 +17,8 @@ type AuthError = { status: number; code?: string } | null;
 
 function messageFor(error: NonNullable<AuthError>, step: Step): string {
   if (error.status === 429) return t.tooMany;
+  if (error.code === "VERIFICATION_FAILED" || error.code === "MISSING_RESPONSE")
+    return t.turnstileFailed;
   if (error.code === "ACCOUNT_TEMPORARILY_LOCKED") return t.locked;
   if (error.code === "INVALID_TWO_FACTOR_COOKIE") return t.expired;
   // 400 = not an email address, 401 = wrong email or password: the same answer for both.
@@ -25,24 +28,41 @@ function messageFor(error: NonNullable<AuthError>, step: Step): string {
   return error.status === 401 || error.code === "INVALID_CODE" ? t.wrongCode : t.failed;
 }
 
-/** Admin sign-in: email and password, then a code from the authenticator app. */
-export function AdminLoginForm() {
+/**
+ * Admin sign-in: email and password, then a code from the authenticator app. The password step
+ * also needs a Turnstile check when Turnstile is set up.
+ */
+export function AdminLoginForm({ turnstileSiteKey }: { turnstileSiteKey: string | null }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("password");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const form = new FormData(event.currentTarget);
+    if (turnstileSiteKey && !token) {
+      setError(t.turnstileNeeded);
+      return;
+    }
     setBusy(true);
     setError(null);
-    const { data, error: signInError } = await authClient.signIn.email({
-      email: String(form.get("email") ?? "").trim(),
-      password: String(form.get("password") ?? ""),
-    });
+    const { data, error: signInError } = await authClient.signIn.email(
+      {
+        email: String(form.get("email") ?? "").trim(),
+        password: String(form.get("password") ?? ""),
+      },
+      withTurnstile(token),
+    );
     setBusy(false);
+    // A Turnstile token works once: get a fresh one for the next attempt.
+    if (turnstileSiteKey) {
+      setToken(null);
+      setTurnstileReset((n) => n + 1);
+    }
     if (signInError) {
       setError(messageFor(signInError, "password"));
       return;
@@ -104,6 +124,14 @@ export function AdminLoginForm() {
           autoComplete="current-password"
           required
         />
+        {turnstileSiteKey ? (
+          <Turnstile
+            siteKey={turnstileSiteKey}
+            action="admin-login"
+            resetKey={turnstileReset}
+            onToken={setToken}
+          />
+        ) : null}
         {errorBox}
         <Button type="submit" fullWidth loading={busy}>
           {t.continue}

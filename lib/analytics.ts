@@ -9,7 +9,11 @@ export type AnalyticsEvent =
   | "search_no_results"
   | "add_to_cart"
   | "begin_checkout"
-  | "purchase";
+  | "purchase"
+  | "login"
+  | "sign_up"
+  | "measurement_started"
+  | "measurement_completed";
 
 export type AnalyticsProperties = Record<string, string | number | boolean | string[] | null>;
 

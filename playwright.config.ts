@@ -24,7 +24,13 @@ export default defineConfig({
     url: `http://localhost:${port}/api/health`,
     reuseExistingServer: !isCI,
     timeout: 120_000,
-    // Stripe sends the customer back to SITE_URL after paying, so it must match this port.
-    env: { SITE_URL: `http://localhost:${port}` },
+    env: {
+      // Stripe sends the customer back to SITE_URL after paying, so it must match this port.
+      SITE_URL: `http://localhost:${port}`,
+      // No Turnstile in browser tests, so they never depend on Cloudflare's servers. (Next.js
+      // keeps these empty values instead of the keys in .env.)
+      TURNSTILE_SITE_KEY: "",
+      TURNSTILE_SECRET_KEY: "",
+    },
   },
 });

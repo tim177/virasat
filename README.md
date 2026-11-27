@@ -57,10 +57,10 @@ The admin is at **/admin**: a dashboard (sales, orders waiting, low stock), orde
 
 ```bash
 pnpm admin:dev     # creates admin@virasat.local; saves its password and authenticator secret in .env
-pnpm admin:code    # prints the current 6-digit sign-in code
+pnpm admin:code    # prints the current 6-digit sign-in code (not needed with the dev code below)
 ```
 
-Sign in at http://localhost:3000/admin/login with `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, then the code from `pnpm admin:code`. Change `ADMIN_EMAIL` or `ADMIN_PASSWORD` in `.env` and run `pnpm admin:dev` again to update it. This only works with a local database. Never put these values on a server.
+Sign in at http://localhost:3000/admin/login with `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env`, then `000000` (the dev code) or the code from `pnpm admin:code`. Change `ADMIN_EMAIL` or `ADMIN_PASSWORD` in `.env` and run `pnpm admin:dev` again to update it. This only works with a local database. Never put these values on a server.
 
 **On a server (or with a real authenticator app):**
 
@@ -73,6 +73,17 @@ It prints a random password, a QR code for an authenticator app (Google Authenti
 Lost the password or the phone? Run the same command with `--reset`: it replaces the password, the authenticator and the backup codes, and signs that admin out everywhere.
 
 `BETTER_AUTH_SECRET` must be set in `.env` (see `.env.example`), and sign-in only works on the address in `SITE_URL`.
+
+## Customer sign-in
+
+Shoppers sign in at **/login** with a 6-digit code sent by email, or with Google. The first sign-in creates the account. There are no customer passwords, and admin accounts can't sign in this way (only password + authenticator at /admin/login).
+
+**Locally:**
+
+- **Dev code.** `DEV_VERIFICATION_CODE="000000"` in `.env` makes `000000` work for every sign-in code: customer email codes and the admin's authenticator step. Real codes keep working. It's ignored in production builds (`pnpm start`, Docker, servers) and with any database that isn't on your computer.
+- **Email codes** land in `.outbox/` like other emails (no Resend key needed).
+- **Turnstile** (the "are you human?" box) uses Cloudflare's always-pass test keys from `.env.example`, so it shows "For testing only". Empty both `TURNSTILE_*` values to hide it. Browser tests always run without it.
+- **"Continue with Google"** stays hidden until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (see `.env.example`).
 
 **Product photos.** Uploads in the product editor are checked (JPEG, PNG, WebP or AVIF, up to 8 MB) and saved to Cloudflare R2 when the five R2 values in `.env` are set (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `IMAGES_BASE_URL`). Without them, they're saved in the git-ignored `uploads/` folder and served at `/uploads/...`. The sample photos in `public/seed` are free stock photos for development only (credits in `public/seed/CREDITS.md`). Replace them with photos of the real pieces before launch.
 

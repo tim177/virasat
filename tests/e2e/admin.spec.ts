@@ -226,7 +226,10 @@ test.describe("an admin", () => {
 
     await page.getByLabel("Published: on sale in the shop").check();
     await page.getByRole("button", { name: "Save product" }).click();
-    await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]{36}\?created=1$/);
+    // Publishing refreshes the shop's cached pages, which is slow on a busy machine or CI runner.
+    await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]{36}\?created=1$/, {
+      timeout: 20_000,
+    });
     await expect(page.getByRole("status").filter({ hasText: "Product created." })).toBeVisible();
     await expectNoWcagViolations(page);
 

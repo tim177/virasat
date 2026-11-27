@@ -161,6 +161,25 @@ DEPLOY PATTERNS (learned in Step 6e)
 - New env vars: add to .env.example (server section if server-only), and to the Dockerfile
   build ARGs + compose build args if pages need them at build time (NEXT_PUBLIC_*, SITE_URL).
 
+LOGIN PATTERNS (learned in Step 7a)
+- Customers: Better Auth email OTP (storeOTP "hashed", codes sent by lib/login-emails.tsx, never
+  awaited) and Google (only when GOOGLE_CLIENT_ID/SECRET are set). Pages read the session with
+  getCustomer()/requireCustomer(returnTo) (lib/customer-auth.ts) inside <Suspense>.
+- Better Auth's two-factor plugin only guards /sign-in/email. lib/auth.ts databaseHooks keep admins
+  on password + TOTP: session.create refuses admin sessions outside adminMayGetSessionFrom()
+  (lib/admin-access.ts), account.create refuses Google on admins, user.create forces "customer".
+  Unused email-OTP endpoints are in disabledPaths. Keep all of this when adding sign-in methods.
+- Optional services read their keys at request time (lib/login-config.ts), so a server needs a
+  restart, not a rebuild: Turnstile (captcha plugin, header x-captcha-response, withTurnstile()
+  in lib/auth-client.ts) and Google. Pass public values to forms as props from a <Suspense> child
+  that calls `await connection()`.
+- DEV_VERIFICATION_CODE (lib/dev-code.ts) is the email code in dev (generateOTP) and stands in for
+  the admin TOTP code (a before hook). Never loosen its production/local-database checks.
+- ?next= redirects go through safeNextPath() (lib/safe-next.ts).
+- Tests: integration tests mock @/lib/email/send and read codes from its subject; e2e reads codes
+  from .outbox/ (tests/e2e/helpers/outbox.ts) because `next start` ignores the dev code.
+  playwright.config.ts blanks the Turnstile keys.
+
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices
    always come from our database on the server; never trust prices sent by the browser.

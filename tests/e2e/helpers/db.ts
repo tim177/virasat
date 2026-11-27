@@ -119,6 +119,14 @@ export async function deleteUnusedUploadsSince(since: Date): Promise<void> {
   }
 }
 
+export async function userByEmail(email: string) {
+  const { rows } = await db().query<{ id: string; role: string; email_verified: boolean }>(
+    `SELECT id, role, email_verified FROM users WHERE email = $1`,
+    [email],
+  );
+  return rows[0] ?? null;
+}
+
 /** Removes users made by a test run, with their sessions, logins and pending sign-ins. */
 export async function deleteUsersMatching(emailFragment: string): Promise<void> {
   const pattern = `%${emailFragment}%`;

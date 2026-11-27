@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
-import { SignOutButton } from "@/components/admin/sign-out-button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { getAdmin } from "@/lib/admin-auth";
 import { en } from "@/lib/i18n/en";
 
@@ -77,7 +77,7 @@ async function SignedInAs() {
   return (
     <div className="flex items-center gap-3 text-body-sm text-stone-700">
       <span>{en.admin.signedInAs(admin.name)}</span>
-      <SignOutButton />
+      <SignOutButton label={en.admin.signOut} redirectTo="/admin/login" />
     </div>
   );
 }

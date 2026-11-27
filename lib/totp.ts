@@ -31,9 +31,14 @@ export function totpCode(
   digits = 6,
   periodSeconds = 30,
 ) {
+  return totpCodeFromKey(base32Decode(base32Secret), timeMs, digits, periodSeconds);
+}
+
+/** The same code from the raw key bytes (what base32 in the QR code encodes). */
+export function totpCodeFromKey(key: Buffer, timeMs = Date.now(), digits = 6, periodSeconds = 30) {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(timeMs / 1000 / periodSeconds)));
-  const hmac = createHmac("sha1", base32Decode(base32Secret)).update(counter).digest();
+  const hmac = createHmac("sha1", key).update(counter).digest();
   const offset = hmac[hmac.length - 1] & 0x0f;
   const number = hmac.readUInt32BE(offset) & 0x7fffffff;
   return String(number % 10 ** digits).padStart(digits, "0");

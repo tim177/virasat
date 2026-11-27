@@ -484,6 +484,22 @@ This is the most important step. Take it slowly and test it well.
 - A custom-fit order carries the exact measurements into admin.
 - The measurement form passes a keyboard-only test and an axe check.
 
+**Notes from building Step 7:**
+- Built in parts, each its own commit: **7a** login, **7b** custom fit and fit profiles, **7c** orders in the account, the order status page and fit calls.
+- **Customer login (7a)** at `/login`:
+  - A 6-digit code by email (works for 10 minutes, 5 tries), or "Continue with Google". The first sign-in creates the account. Customers have no password.
+  - After signing in, the shopper goes back to the page they came from (`?next=`, shop pages only).
+  - Codes are stored only as a hash. At most 5 code emails per address per 15 minutes, and 5 code requests per minute per IP.
+- **Admin accounts can't use the customer login.** Better Auth's two-factor check only covers password sign-in, so an email code or Google sign-in would have given an admin session without the authenticator. Now:
+  - An admin account only gets a session through password + authenticator code.
+  - Admin addresses never get login codes, and Google can't be linked to an admin.
+  - Accounts made through the customer login are always customers.
+  - The email-code password-reset endpoints are switched off.
+- **Turnstile** is on the customer login (when a code is requested) and on the admin password step, once both `TURNSTILE_*` keys are set. Locally, `.env` uses Cloudflare's always-pass test keys. The live keys need the domain (Cloudflare → Turnstile, free).
+- **Google login** appears only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (Google Cloud → OAuth client, free).
+- **Local dev code:** `DEV_VERIFICATION_CODE="000000"` works for every sign-in code (customer email codes and the admin authenticator step). Real codes keep working. It's ignored when `NODE_ENV=production` or the database isn't local (unit-tested).
+- **Analytics:** `login` and `sign_up` (with the method, email or Google) are sent from a short `/login/welcome` stop after each sign-in.
+
 ### Step 8: PWA and polish · ~3 days
 1. **PWA:**
    - `app/manifest.ts` with name, short name, icons (192, 512, maskable), `display: standalone`, and Virasat theme colours.

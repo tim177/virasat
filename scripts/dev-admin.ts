@@ -13,6 +13,8 @@ import { ZodError } from "zod";
 
 import { AdminAccountError, createAdmin } from "@/lib/admin-accounts";
 import { getDb } from "@/lib/db";
+import { devVerificationCode } from "@/lib/dev-code";
+import { databaseHost, isLocalDatabaseUrl } from "@/lib/local-database";
 import { siteUrl } from "@/lib/site-url";
 
 const ENV_FILE = ".env";
@@ -20,10 +22,9 @@ const ENV_FILE = ".env";
 function assertLocalDatabase() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set. Copy .env.example to .env.");
-  const host = new URL(url).hostname;
-  if (!["localhost", "127.0.0.1", "::1"].includes(host)) {
+  if (!isLocalDatabaseUrl(url)) {
     throw new Error(
-      `Refusing to make the dev admin on a non-local database (${host}). Use pnpm admin:create.`,
+      `Refusing to make the dev admin on a non-local database (${databaseHost(url)}). Use pnpm admin:create.`,
     );
   }
 }
@@ -63,7 +64,9 @@ async function main(): Promise<number> {
 Local admin ready: ${admin.email}
 The password and authenticator secret are saved in .env (ADMIN_PASSWORD, ADMIN_TOTP_SECRET).
 
-Sign in at ${siteUrl}/admin/login, then get the 6-digit code with: pnpm admin:code
+Sign in at ${siteUrl}/admin/login, then enter ${
+      devVerificationCode() ?? "the code from: pnpm admin:code"
+    } as the 6-digit code.
 `);
     return 0;
   } catch (error) {
