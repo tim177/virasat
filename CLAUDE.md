@@ -138,6 +138,15 @@ ADMIN AND LOGIN PATTERNS (learned in Step 6)
   app/uploads/[...path]). saveProduct() only accepts photo URLs under /seed/, /uploads/ or
   IMAGES_BASE_URL.
 - Local admin: `pnpm admin:dev` + `pnpm admin:code` (scripts/dev-admin.ts, admin-code.ts).
+- Dashboard periods come from lib/report-periods.ts (India time, weeks from Monday); admin
+  log lines from lib/admin-log-view.ts (describeChanges). New admin_log actions or fields
+  need a label in en.admin.log (actions/fields), or they show their raw key.
+- Integration tests that count shared things (sales, waiting orders) compare before and after,
+  so other rows in the database don't matter.
+- Admin e2e tests that only need a session use signedInPage() (one sign-in shared): signing
+  in per test trips the per-IP two-step limit.
+- A link's visible text must be inside its accessible name (axe label-content-name-mismatch):
+  add extra words with sr-only text, not aria-label.
 
 NON-NEGOTIABLE RULES
 1. Money: integer cents in `*_cents` Int columns, currency "USD". Never floats. Prices

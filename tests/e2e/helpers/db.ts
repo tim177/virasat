@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import pg from "pg";
@@ -98,6 +98,24 @@ export async function deleteProductsMatching(slugFragment: string): Promise<void
   const dir = path.resolve(process.env.UPLOADS_DIR || "uploads");
   for (const { url } of rows) {
     await rm(path.join(dir, url.replace(/^\/uploads\//, "")), { force: true });
+  }
+}
+
+/**
+ * Removes photos uploaded during a test run that no product uses: an upload from an attempt
+ * that failed before saving. Photos older than the run, or still used, are left alone.
+ */
+export async function deleteUnusedUploadsSince(since: Date): Promise<void> {
+  const dir = path.join(path.resolve(process.env.UPLOADS_DIR || "uploads"), "products");
+  const names = await readdir(dir).catch(() => [] as string[]);
+  const { rows } = await db().query<{ url: string }>(
+    `SELECT url FROM product_images WHERE url LIKE '/uploads/products/%'`,
+  );
+  const used = new Set(rows.map((row) => row.url.replace("/uploads/products/", "")));
+  for (const name of names) {
+    if (used.has(name)) continue;
+    const info = await stat(path.join(dir, name)).catch(() => null);
+    if (info && info.mtime >= since) await rm(path.join(dir, name), { force: true });
   }
 }
 

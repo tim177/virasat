@@ -11,6 +11,7 @@ import {
   closeDb,
   deleteOrdersMatching,
   deleteProductsMatching,
+  deleteUnusedUploadsSince,
   deleteUsersMatching,
   insertTestOrder,
 } from "./helpers/db";
@@ -47,6 +48,7 @@ test.describe("an admin", () => {
   test.describe.configure({ mode: "serial" });
 
   const runId = randomUUID().slice(0, 8);
+  const startedAt = new Date();
   let admin: TestAdmin;
 
   test.beforeAll(() => {
@@ -56,6 +58,7 @@ test.describe("an admin", () => {
   test.afterAll(async () => {
     await deleteOrdersMatching(runId);
     await deleteProductsMatching(runId);
+    await deleteUnusedUploadsSince(startedAt);
     await deleteUsersMatching(runId);
     await closeDb();
   });
@@ -91,7 +94,8 @@ test.describe("an admin", () => {
     await page.getByRole("button", { name: "Verify" }).click();
 
     await signInExpect(page).toHaveURL(/\/admin$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Welcome, E2E Admin" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByText("Welcome, E2E Admin")).toBeVisible();
     await expect(page.getByText("Signed in as E2E Admin")).toBeVisible();
     await expectNoWcagViolations(page);
 
@@ -118,7 +122,8 @@ test.describe("an admin", () => {
     await page.getByLabel("Backup code").fill(admin.backupCodes[0]);
     await page.getByRole("button", { name: "Verify" }).click();
     await signInExpect(page).toHaveURL(/\/admin$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Welcome, E2E Admin" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByText("Welcome, E2E Admin")).toBeVisible();
   });
 
   test("processes an order from paid to delivered", async ({ browser }) => {
@@ -234,6 +239,40 @@ test.describe("an admin", () => {
     await expect
       .poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth))
       .toBeGreaterThan(0);
+  });
+
+  test("the dashboard sums up the shop and the admin log shows every change", async ({
+    browser,
+  }) => {
+    const page = await signedInPage(browser);
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByTestId("sales-tile")).toHaveCount(3);
+    await expect(page.getByRole("heading", { level: 2, name: "Needs action" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^To confirm \d+ orders?$/ })).toBeVisible();
+    await expectNoWcagViolations(page);
+
+    await page
+      .getByRole("navigation", { name: "Admin" })
+      .getByRole("link", { name: "Admin log" })
+      .click();
+    await expect(page.getByRole("heading", { level: 1, name: "Admin log" })).toBeVisible();
+    const log = page.getByTestId("admin-log");
+    // The earlier tests in this file processed an order and added a product as "E2E Admin".
+    const productRow = log.getByRole("row").filter({ hasText: `E2E silk saree ${runId}` });
+    await expect(productRow.first()).toContainText("Added a product");
+    await expect(productRow.first()).toContainText("E2E Admin");
+    await expect(
+      log.getByRole("row").filter({ hasText: "Changed order status" }).first(),
+    ).toContainText("Shipped");
+    await expectNoWcagViolations(page);
+
+    await page
+      .getByRole("navigation", { name: "Show changes to" })
+      .getByRole("link", { name: "Products" })
+      .click();
+    await expect(page).toHaveURL(/entity=product/);
+    await expect(log.getByRole("row").filter({ hasText: "Changed order status" })).toHaveCount(0);
   });
 });
 

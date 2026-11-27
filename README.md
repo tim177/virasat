@@ -51,7 +51,7 @@ All design-system components are previewed at **http://localhost:3000/dev/compon
 
 ## Admin
 
-The admin is at **/admin**: orders (paid → delivered), products (with photo upload) and more. There is no sign-up page: admins are created from the command line, with two-step sign-in already turned on.
+The admin is at **/admin**: a dashboard (sales, orders waiting, low stock), orders (paid → delivered), products (with photo upload) and the admin log (every change, before and after). There is no sign-up page: admins are created from the command line, with two-step sign-in already turned on.
 
 **Locally, the quick way:**
 

@@ -257,7 +257,7 @@ export function ProductForm({ initial, notice }: { initial: ProductFormInitial; 
             label={t.category}
             name="category"
             defaultValue={initial.category}
-            placeholder={t.category}
+            placeholder={t.chooseCategory}
             options={categories.map((c) => ({ value: c.value, label: c.label }))}
             error={errors.category}
           />

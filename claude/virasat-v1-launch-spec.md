@@ -439,6 +439,12 @@ This is the most important step. Take it slowly and test it well.
 - **Publishing needs** at least one photo, a size or custom fit, and the HS code (from the customs broker). Drafts can be saved without them.
 - **Photo upload goes through our server** (`POST /api/admin/uploads`), not straight to R2 as first planned. One code path, and the server checks every file really is a JPEG, PNG, WebP or AVIF of at most 8 MB before storing it under a random name. With the R2 keys set, photos go to R2 and are served from `IMAGES_BASE_URL`. Without them, they go to a local `uploads/` folder served at `/uploads/...` (local development, CI, or a server before R2 exists). Photos removed from a product stay in storage; that's harmless at this size.
 - **Local dev admin:** `pnpm admin:dev` creates `admin@virasat.local` from `.env` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`) and saves its authenticator secret there. `pnpm admin:code` prints the current code. Two-step sign-in stays on everywhere; this only makes it easy on a laptop, and it refuses non-local databases.
+- **Dashboard (6d)** at `/admin`:
+  - Sales today, this week and this month: paid orders without cancelled or refunded ones, in USD. Days start at midnight India time and weeks on Monday.
+  - "Needs action" counts for paid, confirmed, in production and shipped orders, each linking to the filtered order list.
+  - "Running low": the 10 lowest sizes of published products with 2 or fewer pieces left, sold-out first, with the total.
+  - The 5 latest orders.
+- **Admin log (6d)** at `/admin/log`: every admin change, newest first, filtered by orders or products, 50 per page. It shows who (with IP), when, what it was about (with a link), and each changed field as before → after, in plain words ("Price: $349.00 → $299.00").
 - **Sample photos** in `public/seed` are now free Unsplash photos of similar garments, cropped to 3:4, each with a close-up crop as the second photo (credits: `public/seed/CREDITS.md`). They're for development and demos only. Launch needs photos of the real pieces.
 
 ### Step 7: Accounts, custom fit and order status · ~5 days

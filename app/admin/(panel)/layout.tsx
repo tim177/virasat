@@ -48,6 +48,14 @@ export default function AdminPanelLayout({ children }: { children: ReactNode }) 
                     {en.admin.productsNav}
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/admin/log"
+                    className="inline-flex min-h-11 items-center hover:underline"
+                  >
+                    {en.admin.logNav}
+                  </Link>
+                </li>
               </ul>
             </nav>
           </div>
